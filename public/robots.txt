@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nextradev.com/sitemap.xml
