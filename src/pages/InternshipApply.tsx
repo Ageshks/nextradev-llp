@@ -47,11 +47,11 @@ export default function InternshipApply() {
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!validate()) return;
-    if (isDuplicate(form.email, form.position)) { setStatus('error'); setMessage('You have already applied for this position.'); return; }
+    if (await isDuplicate(form.email, form.position)) { setStatus('error'); setMessage('You have already applied for this position.'); return; }
     setStatus('loading');
     try {
       const dataUrl = await toDataUrl(file!);
-      addApplication({
+      await addApplication({
         id: crypto.randomUUID(),
         fullName: form.fullName,
         email: form.email,

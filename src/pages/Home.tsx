@@ -7,8 +7,8 @@ import Button from '../components/ui/Button';
 import { lazy, Suspense } from 'react';
 import usePageMeta from '../hooks/usePageMeta';
 import { services } from '../data/services';
-import { projects } from '../data/projects';
-import { leadership } from '../data/leadership';
+import useLeadership from '../hooks/useLeadership';
+import useProjects from '../hooks/useProjects';
 const HeroScene = lazy(() => import('../components/three/HeroScene'));
 
 const iconMap: Record<string, any> = { Globe, Smartphone, Code2, Palette, TrendingUp, Cloud };
@@ -17,6 +17,8 @@ const process = ['Discovery & Planning','UI/UX Design','Development','Testing & 
 const why = ['Business-focused solutions','Modern technologies','Scalable architecture','Dedicated technical support','Transparent communication','On-time delivery'];
 
 export default function Home() {
+  const leadership = useLeadership();
+  const projects = useProjects();
   usePageMeta('Nextradev Technologies LLP | Home', 'Building Digital Experiences. Engineering the Future.');
   return (
     <div>
@@ -113,7 +115,7 @@ export default function Home() {
             {projects.map((p,i) => (
               <Card key={p.id} className="overflow-hidden">
                 <motion.div initial={{opacity:0,y:20}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:i*0.08}}>
-                  <div className="h-40 rounded-xl bg-gradient-to-br from-blue-600/30 to-cyan-400/10 mb-4 grid place-items-center text-muted text-sm">Project Preview</div>
+                  <div className="h-40 rounded-xl bg-gradient-to-br from-blue-600/30 to-cyan-400/10 mb-4 grid place-items-center text-muted text-sm overflow-hidden"><img src={p.image} alt={p.title} className="h-full w-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} /></div>
                   <h3 className="text-white font-semibold text-lg">{p.title}</h3>
                   <p className="text-sm text-muted mt-1">{p.description}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -151,7 +153,7 @@ export default function Home() {
             {leadership.map((l,i) => (
               <Card key={i}>
                 <motion.div initial={{opacity:0,y:20}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:i*0.1}}>
-                  <div className="h-48 rounded-xl bg-gradient-to-br from-blue-600/20 to-cyan-400/10 mb-4 grid place-items-center overflow-hidden">
+                  <div className="h-80 rounded-xl bg-gradient-to-br from-blue-600/20 to-cyan-400/10 mb-4 grid place-items-center overflow-hidden">
                     <img src={l.image} alt={l.name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                   </div>
                   <h3 className="text-white font-semibold text-lg">{l.name}</h3>
@@ -172,6 +174,7 @@ export default function Home() {
             <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-cyan-400/20 blur-[80px]" />
             <h2 className="text-3xl md:text-5xl font-bold text-white">Start Your Tech Career with Nextradev!</h2>
             <p className="mt-4 text-muted max-w-2xl mx-auto">Turn your passion for technology into practical experience. Join Nextradev's internship program, work on real-world projects, learn from experienced developers, and take the first step towards your professional career.</p>
+<p className="mt-2 text-cyan-400 font-semibold text-lg">🎯 <strong>100% Placement Assistance</strong></p>
             <div className="mt-8 flex flex-wrap gap-4 justify-center">
               <Link to="/internships"><Button>Explore Internship Opportunities</Button></Link>
               <Link to="/internships/apply"><Button variant="ghost">Apply Now</Button></Link>

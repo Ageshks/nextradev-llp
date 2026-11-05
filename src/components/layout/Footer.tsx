@@ -7,10 +7,12 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 grid gap-8 md:grid-cols-4">
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-400 grid place-items-center font-bold text-white">N</span>
-            <span className="font-display font-semibold text-white">Nextradev</span>
+            <img src="/logo.png" alt="Nextradev" className="h-8 w-auto logo-highlight" />
           </div>
           <p className="text-sm text-muted">Technology That Moves Businesses Forward.</p>
+          <ul className="space-y-2 text-sm text-muted mt-4">
+            <li><Link to="/admin/login" className="hover:text-cyan-400">Login</Link></li>
+          </ul>
         </div>
         <div>
           <h4 className="text-white font-semibold mb-3">Company</h4>

@@ -1,12 +1,13 @@
 import SectionHeading from '../components/ui/SectionHeading';
 import usePageMeta from '../hooks/usePageMeta';
 import Card from '../components/ui/Card';
-import { leadership } from '../data/leadership';
+import useLeadership from '../hooks/useLeadership';
 
 const values = ['Innovation','Reliability','Quality','Customer satisfaction'];
 const tech = ['React','TypeScript','Node.js','Python','Flutter','AWS','Docker','PostgreSQL'];
 
 export default function About() {
+  const leadership = useLeadership();
   usePageMeta('About Us | Nextradev Technologies LLP');
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
@@ -29,7 +30,7 @@ export default function About() {
       <div className="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
         {leadership.map((l,i) => (
           <Card key={i}>
-            <div className="h-40 rounded-xl bg-gradient-to-br from-blue-600/20 to-cyan-400/10 mb-4 overflow-hidden grid place-items-center">
+            <div className="h-80 rounded-xl bg-gradient-to-br from-blue-600/20 to-cyan-400/10 mb-4 overflow-hidden grid place-items-center">
               <img src={l.image} alt={l.name} className="h-full w-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display='none';}} />
             </div>
             <h3 className="text-white font-semibold">{l.name}</h3>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
@@ -8,7 +9,10 @@ import usePageMeta from '../hooks/usePageMeta';
 
 export default function Internships() {
   usePageMeta('Internships | Nextradev Technologies LLP');
-  const openings = getOpenings() || internships;
+  const [openings, setOpenings] = useState<any[]>(internships);
+  useEffect(() => {
+    getOpenings().then(o => { if (Array.isArray(o) && o.length) setOpenings(o); }).catch(() => {});
+  }, []);
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
       <SectionHeading eyebrow="Internships" title="Internship Opportunities" subtitle="Gain real-world experience with Nextradev. Sample openings; details configurable." />

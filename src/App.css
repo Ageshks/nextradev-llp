@@ -177,8 +177,11 @@
     left: 0;
     border-left-color: var(--border);
   }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+  .logo-highlight {
+  box-shadow: 0 0 20px rgba(0, 150, 255, 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+.logo-highlight:hover {
+  box-shadow: 0 0 30px rgba(0, 150, 255, 0.8);
 }

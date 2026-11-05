@@ -14,6 +14,8 @@ npm install
 npm run dev
 ```
 
+This starts both the Vite site and the API server. Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `JWT_SECRET` in `.env` before logging in as an administrator. Use `npm run dev:client` only when the API is already running separately.
+
 ## Build
 
 ```bash
