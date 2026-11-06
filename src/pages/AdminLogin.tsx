@@ -4,10 +4,10 @@ import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { adminLogin } from '../utils/api';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 
 export default function AdminLogin() {
-  usePageMeta('Admin Login | Nextradev');
+  useSEO({ title: 'Admin Login | Nextradev', noindex: true });
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

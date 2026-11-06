@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Mail, MessageCircle, MapPin, Building2 } from 'lucide-react';
 import SectionHeading from '../components/ui/SectionHeading';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 
 const API_URL = import.meta.env.VITE_CONTACT_API_URL as string | undefined;
 
 export default function Contact() {
-  usePageMeta('Contact Us | Nextradev Technologies LLP');
+  useSEO({ title: 'Contact Us | Nextradev Technologies LLP', description: 'Contact Nextradev Technologies LLP to discuss your next web, mobile, or software project.', path: '/contact', keywords: ['contact Nextradev', 'software development inquiry'] });
   const [form, setForm] = useState({ name:'', email:'', phone:'', company:'', service:'', description:'' });
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');

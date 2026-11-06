@@ -5,10 +5,10 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { internships } from '../data/internships';
 import { getOpenings } from '../utils/applicationStorage';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 
 export default function Internships() {
-  usePageMeta('Internships | Nextradev Technologies LLP');
+  useSEO({ title: 'Internships | Nextradev Technologies LLP', description: 'Explore internship opportunities at Nextradev Technologies LLP and start your tech career.', path: '/internships', keywords: ['internships', 'tech internships', 'software internship'] });
   const [openings, setOpenings] = useState<any[]>(internships);
   useEffect(() => {
     getOpenings().then(o => { if (Array.isArray(o) && o.length) setOpenings(o); }).catch(() => {});

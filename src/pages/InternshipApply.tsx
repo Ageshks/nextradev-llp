@@ -5,12 +5,12 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { internships } from '../data/internships';
 import { addApplication, isDuplicate } from '../utils/applicationStorage';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 
 const MAX_FILE = 5 * 1024 * 1024;
 
 export default function InternshipApply() {
-  usePageMeta('Apply for Internship | Nextradev Technologies LLP');
+  useSEO({ title: 'Apply for Internship | Nextradev Technologies LLP', description: 'Apply for an internship at Nextradev Technologies LLP and gain real-world software development experience.', path: '/internships/apply', keywords: ['internship application'] });
   const [params] = useSearchParams();
   const [form, setForm] = useState({ fullName:'', email:'', phone:'', college:'', education:'', position: params.get('position') || '', mode:'', skills:'', motivation:'' });
   const [file, setFile] = useState<File | null>(null);

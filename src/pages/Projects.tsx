@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SectionHeading from '../components/ui/SectionHeading';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import { projectCategories } from '../data/projects';
 import useProjects from '../hooks/useProjects';
 
 export default function Projects() {
-  usePageMeta('Projects | Nextradev Technologies LLP');
+  useSEO({ title: 'Projects | Nextradev Technologies LLP', description: 'Explore Nextradev portfolio of web, mobile, and software projects built for real businesses.', path: '/projects', keywords: ['portfolio', 'software projects', 'web and mobile apps'] });
   const [filter, setFilter] = useState<string>('All');
   const [selected, setSelected] = useState<any>(null);
   const projects = useProjects();

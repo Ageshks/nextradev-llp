@@ -6,10 +6,10 @@ import Button from '../components/ui/Button';
 import { getApplications, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
 import { resolveMediaUrl } from '../utils/api';
 import { internships, internshipStatuses } from '../data/internships';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 
 export default function AdminInternships() {
-  usePageMeta('Admin | Internships');
+  useSEO({ title: 'Admin | Internships', noindex: true });
   const navigate = useNavigate();
   const [authed, setAuthed] = useState(false);
   const [apps, setApps] = useState<any[]>([]);

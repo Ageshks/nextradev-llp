@@ -13,6 +13,7 @@ const Internships = lazy(() => import('./pages/Internships'));
 const InternshipApply = lazy(() => import('./pages/InternshipApply'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AdminInternships = lazy(() => import('./pages/AdminInternships'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/contact" element={<Suspense fallback={<Fallback/>}><Contact /></Suspense>} />
             <Route path="/internships" element={<Suspense fallback={<Fallback/>}><Internships /></Suspense>} />
             <Route path="/internships/apply" element={<Suspense fallback={<Fallback/>}><InternshipApply /></Suspense>} />
+            <Route path="*" element={<Suspense fallback={<Fallback/>}><NotFound /></Suspense>} />
             <Route path="/admin/login" element={<Suspense fallback={<Fallback/>}><AdminLogin /></Suspense>} />
             <Route path="/admin/internships" element={<Suspense fallback={<Fallback/>}><AdminInternships /></Suspense>} />
           </Route>

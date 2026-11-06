@@ -1,5 +1,5 @@
 import SectionHeading from '../components/ui/SectionHeading';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import useLeadership from '../hooks/useLeadership';
 
@@ -8,7 +8,7 @@ const tech = ['React','TypeScript','Node.js','Python','Flutter','AWS','Docker','
 
 export default function About() {
   const leadership = useLeadership();
-  usePageMeta('About Us | Nextradev Technologies LLP');
+  useSEO({ title: 'About Us | Nextradev Technologies LLP', description: 'Learn about Nextradev Technologies LLP, our mission, vision, values, and leadership team.', path: '/about', keywords: ['about Nextradev', 'technology company', 'software team'] });
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
       <SectionHeading eyebrow="About Us" title="Who We Are" subtitle="Nextradev Technologies LLP is a technology and digital solutions company helping businesses build, grow, and scale through technology." />

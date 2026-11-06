@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import SectionHeading from '../components/ui/SectionHeading';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { jobs } from '../data/careers';
 const API_URL = import.meta.env.VITE_CAREERS_API_URL as string | undefined;
 
 export default function Careers() {
-  usePageMeta('Careers | Nextradev Technologies LLP');
+  useSEO({ title: 'Careers | Nextradev Technologies LLP', description: 'Join Nextradev Technologies LLP. Explore open positions and apply to build your career in technology.', path: '/careers', keywords: ['careers', 'software jobs', 'technology jobs'] });
   const [form, setForm] = useState({ name:'', email:'', phone:'', position:'', message:'' });
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Globe, Smartphone, Code2, Palette, TrendingUp, Cloud } from 'lucide-react';
 import SectionHeading from '../components/ui/SectionHeading';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { services } from '../data/services';
@@ -9,7 +9,7 @@ import { services } from '../data/services';
 const iconMap: Record<string, any> = { Globe, Smartphone, Code2, Palette, TrendingUp, Cloud };
 
 export default function Services() {
-  usePageMeta('Services | Nextradev Technologies LLP');
+  useSEO({ title: 'Services | Nextradev Technologies LLP', description: 'Comprehensive digital services including web development, mobile apps, custom software, UI/UX, digital marketing, and cloud solutions.', path: '/services', keywords: ['software services', 'web development', 'mobile app development', 'custom software'] });
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
       <SectionHeading eyebrow="Services" title="Our Services" subtitle="Comprehensive digital services to build, grow, and scale your business." />

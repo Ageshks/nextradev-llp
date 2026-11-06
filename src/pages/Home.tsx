@@ -5,7 +5,7 @@ import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { lazy, Suspense } from 'react';
-import usePageMeta from '../hooks/usePageMeta';
+import useSEO from '../hooks/useSEO';
 import { services } from '../data/services';
 import useLeadership from '../hooks/useLeadership';
 import useProjects from '../hooks/useProjects';
@@ -19,7 +19,7 @@ const why = ['Business-focused solutions','Modern technologies','Scalable archit
 export default function Home() {
   const leadership = useLeadership();
   const projects = useProjects();
-  usePageMeta('Nextradev Technologies LLP | Home', 'Building Digital Experiences. Engineering the Future.');
+  useSEO({ title: 'Nextradev Technologies LLP | Home', description: 'Building Digital Experiences. Engineering the Future.', path: '/', keywords: ['Nextradev Technologies LLP', 'software development company', 'web and mobile app development'] });
   return (
     <div>
       {/* Hero */}
