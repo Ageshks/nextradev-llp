@@ -10,7 +10,7 @@ import useSEO from '../hooks/useSEO';
 const MAX_FILE = 5 * 1024 * 1024;
 
 export default function InternshipApply() {
-  useSEO({ title: 'Apply for Internship | Nextradev Technologies LLP', description: 'Apply for an internship at Nextradev Technologies LLP and gain real-world software development experience.', path: '/internships/apply', keywords: ['internship application'] });
+  useSEO({ title: 'Apply for Internship | Nextradev Technologies LLP', description: 'Apply for an internship at Nextradev Technologies LLP and gain real-world software development experience.', path: '/internships/apply', keywords: ['internship application'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Internships', item: 'https://nextradev.com/internships' }, { '@type': 'ListItem', position: 3, name: 'Apply', item: 'https://nextradev.com/internships/apply' }] } });
   const [params] = useSearchParams();
   const [form, setForm] = useState({ fullName:'', email:'', phone:'', college:'', education:'', position: params.get('position') || '', mode:'', skills:'', motivation:'' });
   const [file, setFile] = useState<File | null>(null);
@@ -82,6 +82,7 @@ export default function InternshipApply() {
   }
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Apply for Internship | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Apply" title="Internship Application" subtitle="Fill out the form below to apply." />
       <Card>
         <form onSubmit={submit} className="space-y-4">

@@ -8,7 +8,7 @@ import Button from '../components/ui/Button';
 const API_URL = import.meta.env.VITE_CONTACT_API_URL as string | undefined;
 
 export default function Contact() {
-  useSEO({ title: 'Contact Us | Nextradev Technologies LLP', description: 'Contact Nextradev Technologies LLP to discuss your next web, mobile, or software project.', path: '/contact', keywords: ['contact Nextradev', 'software development inquiry'] });
+  useSEO({ title: 'Contact Us | Nextradev Technologies LLP', description: 'Contact Nextradev Technologies LLP to discuss your next web, mobile, or software project.', path: '/contact', keywords: ['contact Nextradev', 'software development inquiry'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Contact', item: 'https://nextradev.com/contact' }] } });
   const [form, setForm] = useState({ name:'', email:'', phone:'', company:'', service:'', description:'' });
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');
@@ -38,6 +38,7 @@ export default function Contact() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Contact Us | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Contact" title="Get In Touch" subtitle="Let's discuss your next project." />
       <div className="grid lg:grid-cols-2 gap-8">
         <Card>

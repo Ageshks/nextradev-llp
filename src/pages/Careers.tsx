@@ -7,7 +7,7 @@ import { jobs } from '../data/careers';
 const API_URL = import.meta.env.VITE_CAREERS_API_URL as string | undefined;
 
 export default function Careers() {
-  useSEO({ title: 'Careers | Nextradev Technologies LLP', description: 'Join Nextradev Technologies LLP. Explore open positions and apply to build your career in technology.', path: '/careers', keywords: ['careers', 'software jobs', 'technology jobs'] });
+  useSEO({ title: 'Careers | Nextradev Technologies LLP', description: 'Join Nextradev Technologies LLP. Explore open positions and apply to build your career in technology.', path: '/careers', keywords: ['careers', 'software jobs', 'technology jobs'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Careers', item: 'https://nextradev.com/careers' }] } });
   const [form, setForm] = useState({ name:'', email:'', phone:'', position:'', message:'' });
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');
@@ -37,6 +37,7 @@ export default function Careers() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Careers | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Careers" title="Join Our Team" subtitle="Build your career with a team that values innovation and growth." />
       <div className="grid md:grid-cols-2 gap-6 mb-12">
         <Card><h3 className="text-white font-semibold mb-2">Company Culture</h3><p className="text-muted">Collaborative, innovative, and growth-focused environment.</p></Card>

@@ -7,7 +7,7 @@ import { projectCategories } from '../data/projects';
 import useProjects from '../hooks/useProjects';
 
 export default function Projects() {
-  useSEO({ title: 'Projects | Nextradev Technologies LLP', description: 'Explore Nextradev portfolio of web, mobile, and software projects built for real businesses.', path: '/projects', keywords: ['portfolio', 'software projects', 'web and mobile apps'] });
+  useSEO({ title: 'Projects | Nextradev Technologies LLP', description: 'Explore Nextradev portfolio of web, mobile, and software projects built for real businesses.', path: '/projects', keywords: ['portfolio', 'software projects', 'web and mobile apps'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Projects', item: 'https://nextradev.com/projects' }] } });
   const [filter, setFilter] = useState<string>('All');
   const [selected, setSelected] = useState<any>(null);
   const projects = useProjects();
@@ -15,6 +15,7 @@ export default function Projects() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Projects | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Portfolio" title="Projects" subtitle="Explore our work across web, mobile, and software." />
       <div className="flex flex-wrap gap-2 justify-center mb-10">
         {projectCategories.map(c => (

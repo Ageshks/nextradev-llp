@@ -8,9 +8,10 @@ const tech = ['React','TypeScript','Node.js','Python','Flutter','AWS','Docker','
 
 export default function About() {
   const leadership = useLeadership();
-  useSEO({ title: 'About Us | Nextradev Technologies LLP', description: 'Learn about Nextradev Technologies LLP, our mission, vision, values, and leadership team.', path: '/about', keywords: ['about Nextradev', 'technology company', 'software team'] });
+  useSEO({ title: 'About Us | Nextradev Technologies LLP', description: 'Learn about Nextradev Technologies LLP, our mission, vision, values, and leadership team.', path: '/about', keywords: ['about Nextradev', 'technology company', 'software team'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'About Us', item: 'https://nextradev.com/about' }] } });
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">About Us | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="About Us" title="Who We Are" subtitle="Nextradev Technologies LLP is a technology and digital solutions company helping businesses build, grow, and scale through technology." />
       <div className="grid md:grid-cols-2 gap-6 mb-16">
         <Card><h3 className="text-white font-semibold mb-2">Our Mission</h3><p className="text-muted">To empower businesses with reliable, scalable, and innovative digital solutions.</p></Card>

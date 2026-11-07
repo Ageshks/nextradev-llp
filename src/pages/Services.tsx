@@ -9,9 +9,10 @@ import { services } from '../data/services';
 const iconMap: Record<string, any> = { Globe, Smartphone, Code2, Palette, TrendingUp, Cloud };
 
 export default function Services() {
-  useSEO({ title: 'Services | Nextradev Technologies LLP', description: 'Comprehensive digital services including web development, mobile apps, custom software, UI/UX, digital marketing, and cloud solutions.', path: '/services', keywords: ['software services', 'web development', 'mobile app development', 'custom software'] });
+  useSEO({ title: 'Services | Nextradev Technologies LLP', description: 'Comprehensive digital services including web development, mobile apps, custom software, UI/UX, digital marketing, and cloud solutions.', path: '/services', keywords: ['software services', 'web development', 'mobile app development', 'custom software'], jsonLd: [{ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Services', item: 'https://nextradev.com/services' }] }, { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: services.map((s, i) => ({ '@type': 'Service', position: i + 1, name: s.title, description: s.description, provider: { '@type': 'Organization', name: 'Nextradev Technologies LLP' } })) }] });
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Services | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Services" title="Our Services" subtitle="Comprehensive digital services to build, grow, and scale your business." />
       <div className="space-y-8">
         {services.map((s) => {

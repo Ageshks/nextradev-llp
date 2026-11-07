@@ -8,13 +8,14 @@ import { getOpenings } from '../utils/applicationStorage';
 import useSEO from '../hooks/useSEO';
 
 export default function Internships() {
-  useSEO({ title: 'Internships | Nextradev Technologies LLP', description: 'Explore internship opportunities at Nextradev Technologies LLP and start your tech career.', path: '/internships', keywords: ['internships', 'tech internships', 'software internship'] });
+  useSEO({ title: 'Internships | Nextradev Technologies LLP', description: 'Explore internship opportunities at Nextradev Technologies LLP and start your tech career.', path: '/internships', keywords: ['internships', 'tech internships', 'software internship'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Internships', item: 'https://nextradev.com/internships' }] } });
   const [openings, setOpenings] = useState<any[]>(internships);
   useEffect(() => {
     getOpenings().then(o => { if (Array.isArray(o) && o.length) setOpenings(o); }).catch(() => {});
   }, []);
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="sr-only">Internships | Nextradev Technologies LLP</h1>
       <SectionHeading eyebrow="Internships" title="Internship Opportunities" subtitle="Gain real-world experience with Nextradev. Sample openings; details configurable." />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {openings.map((it: any) => (
