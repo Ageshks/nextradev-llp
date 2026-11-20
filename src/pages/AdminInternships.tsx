@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { getApplications, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
+import { getApplications, getApplication, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
 import { resolveMediaUrl } from '../utils/api';
 import { reorderLeadership, reorderProjects } from '../utils/api';
 import { internships, internshipStatuses } from '../data/internships';
@@ -61,6 +61,21 @@ export default function AdminInternships() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'applications.csv'; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadResume = async (application: any) => {
+    try {
+      const details = await getApplication(application.id);
+      if (!details.resumeDataUrl) throw new Error('Resume file is unavailable.');
+      const link = document.createElement('a');
+      link.href = details.resumeDataUrl;
+      link.download = details.resumeName || 'resume.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not download resume.');
+    }
   };
 
   const blankOpening = () => ({ title: '', department: '', duration: '3-6 months', compensation: '', mode: 'Remote / Hybrid', skills: [], deadline: 'Rolling' });
@@ -154,7 +169,7 @@ export default function AdminInternships() {
                   </select>
                 </td>
                 <td>
-                  <a href={a.resumeDataUrl} download={a.resumeName} className="text-cyan-400 hover:underline">Download</a>
+                  <button type="button" onClick={() => void downloadResume(a)} className="text-cyan-400 hover:underline">Download</button>
                 </td>
                 <td>
                   <button onClick={() => { deleteApplication(a.id); refresh(); }} className="text-red-400 hover:underline">Delete</button>

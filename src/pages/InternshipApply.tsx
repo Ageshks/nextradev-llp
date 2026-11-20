@@ -64,11 +64,15 @@ export default function InternshipApply() {
         motivation: form.motivation,
         resumeName: file!.name,
         resumeDataUrl: dataUrl,
+        consent,
         submittedAt: new Date().toISOString(),
         status: 'Pending',
       });
       setStatus('success'); setMessage('Application submitted successfully.');
-    } catch { setStatus('error'); setMessage('Submission failed. Please try again.'); }
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Submission failed. Please try again.');
+    }
   };
 
   if (status === 'success') {
