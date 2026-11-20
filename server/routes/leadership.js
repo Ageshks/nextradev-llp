@@ -21,7 +21,7 @@ const upload = multer({
 
 // Public: list leadership
 router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM leadership ORDER BY created_at DESC').all();
+  const rows = db.prepare('SELECT * FROM leadership ORDER BY display_order ASC, created_at DESC').all();
   res.json(rows.map(r => ({
     id: r.id,
     name: r.name,
@@ -31,6 +31,17 @@ router.get('/', (_req, res) => {
     linkedin: r.linkedin,
     twitter: r.twitter,
   })));
+});
+
+router.patch('/order', authMiddleware, (req, res) => {
+  const ids = req.body?.ids;
+  const current = db.prepare('SELECT id FROM leadership ORDER BY display_order ASC, created_at DESC').all().map(row => row.id);
+  if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length || ids.some(id => !current.includes(id))) {
+    return res.status(400).json({ error: 'Order must contain every founder exactly once' });
+  }
+  const update = db.prepare('UPDATE leadership SET display_order = ? WHERE id = ?');
+  ids.forEach((id, index) => update.run(index, id));
+  res.json({ message: 'Order saved' });
 });
 
 function fields(body) {
@@ -51,8 +62,9 @@ router.post('/', authMiddleware, upload.single('founderImage'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Founder photo required' });
   const id = randomUUID();
   const image = `/uploads/founders/${req.file.filename}`;
-  db.prepare('INSERT INTO leadership (id,name,designation,bio,image,linkedin,twitter,created_at) VALUES (?,?,?,?,?,?,?,?)')
-    .run(id, data.name, data.designation, data.bio, image, data.linkedin, data.twitter, new Date().toISOString());
+  const order = db.prepare('SELECT COALESCE(MAX(display_order), -1) + 1 AS next FROM leadership').get().next;
+  db.prepare('INSERT INTO leadership (id,name,designation,bio,image,linkedin,twitter,created_at,display_order) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(id, data.name, data.designation, data.bio, image, data.linkedin, data.twitter, new Date().toISOString(), order);
   res.status(201).json({ id, ...data, image });
 });
 

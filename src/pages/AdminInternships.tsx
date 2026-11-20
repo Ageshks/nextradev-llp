@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { getApplications, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
 import { resolveMediaUrl } from '../utils/api';
+import { reorderLeadership, reorderProjects } from '../utils/api';
 import { internships, internshipStatuses } from '../data/internships';
 import useSEO from '../hooks/useSEO';
 
@@ -92,6 +93,25 @@ export default function AdminInternships() {
       else await addProject(form);
       setProjectForm(null); setProjectImage(null); await refresh(); setNotice('Project saved.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save project.'); }
+  };
+  const moveItem = async (kind: 'project' | 'founder', index: number, delta: -1 | 1) => {
+    const list = kind === 'project' ? [...projectList] : [...leaders];
+    const target = index + delta;
+    if (target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    try {
+      if (kind === 'project') {
+        setProjectList(list);
+        await reorderProjects(list.map(item => item.id));
+      } else {
+        setLeaders(list);
+        await reorderLeadership(list.map(item => item.id));
+      }
+      setNotice(kind === 'project' ? 'Project order saved.' : 'Founder order saved.');
+    } catch (error) {
+      await refresh();
+      setNotice(error instanceof Error ? error.message : 'Could not save order.');
+    }
   };
   const inputClass = 'w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-white';
 
@@ -183,7 +203,7 @@ export default function AdminInternships() {
           <label className="text-sm text-muted sm:col-span-2">Founder photo {leaderForm.id && '(leave empty to keep current photo)'}<input required={!leaderForm.id} type="file" accept="image/*" onChange={e => setPhoto(e.target.files?.[0] || null)} className="mt-1 block w-full text-sm text-muted" /></label>
           <div className="flex gap-2 sm:col-span-2"><Button type="submit">Save profile</Button><Button type="button" variant="ghost" onClick={() => setLeaderForm(null)}>Cancel</Button></div>
         </form>}
-        <div className="grid gap-3 sm:grid-cols-2">{leaders.map(l => <Card key={l.id} className="flex gap-4 items-center"><img src={l.image} alt={l.name} className="h-20 w-20 rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-medium text-white">{l.name}</p><p className="text-sm text-cyan-400">{l.designation}</p></div><button className="text-cyan-400 text-sm" onClick={() => { setPhoto(null); setLeaderForm(l); }}>Edit</button><button className="text-red-400 text-sm" onClick={async () => { await deleteLeader(l.id); await refresh(); }}>Remove</button></Card>)}</div>
+        <div className="grid gap-3 sm:grid-cols-2">{leaders.map((l, index) => <Card key={l.id} className="flex gap-4 items-center"><img src={resolveMediaUrl(l.image)} alt={l.name} className="h-20 w-20 rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-medium text-white">{l.name}</p><p className="text-sm text-cyan-400">{l.designation}</p></div><div className="flex flex-col gap-1"><button aria-label={`Move ${l.name} up`} disabled={index === 0} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('founder', index, -1)}>↑</button><button aria-label={`Move ${l.name} down`} disabled={index === leaders.length - 1} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('founder', index, 1)}>↓</button></div><button className="text-cyan-400 text-sm" onClick={() => { setPhoto(null); setLeaderForm(l); }}>Edit</button><button className="text-red-400 text-sm" onClick={async () => { await deleteLeader(l.id); await refresh(); }}>Remove</button></Card>)}</div>
       </section>}
 
       {tab === 'projects' && <section>
@@ -197,7 +217,7 @@ export default function AdminInternships() {
           <label className="text-sm text-muted sm:col-span-2">Project image {projectForm.id && '(leave empty to keep current image)'}<input required={!projectForm.id} type="file" name="projectImage" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => setProjectImage(e.target.files?.[0] || null)} className="mt-1 block w-full text-sm text-muted" /></label>
           <div className="flex gap-2 sm:col-span-2"><Button type="submit">Save project</Button><Button type="button" variant="ghost" onClick={() => { setProjectForm(null); setProjectImage(null); }}>Cancel</Button></div>
         </form>}
-        <div className="grid gap-3 sm:grid-cols-2">{projectList.map(project => <Card key={project.id} className="flex items-center gap-4"><img src={resolveMediaUrl(project.image)} alt={project.title} className="h-20 w-24 rounded-lg bg-slate-900 object-cover" /><div className="min-w-0 flex-1"><p className="font-medium text-white">{project.title}</p><p className="text-sm text-muted">{project.category}</p></div><button className="text-cyan-400 text-sm" onClick={() => { setProjectImage(null); setProjectForm(project); }}>Edit</button><button className="text-red-400 text-sm" onClick={async () => { try { await deleteProject(project.id); await refresh(); setNotice('Project removed.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not remove project.'); } }}>Remove</button></Card>)}</div>
+        <div className="grid gap-3 sm:grid-cols-2">{projectList.map((project, index) => <Card key={project.id} className="flex items-center gap-4"><img src={resolveMediaUrl(project.image)} alt={project.title} className="h-20 w-24 rounded-lg bg-slate-900 object-cover" /><div className="min-w-0 flex-1"><p className="font-medium text-white">{project.title}</p><p className="text-sm text-muted">{project.category}</p></div><div className="flex flex-col gap-1"><button aria-label={`Move ${project.title} up`} disabled={index === 0} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('project', index, -1)}>↑</button><button aria-label={`Move ${project.title} down`} disabled={index === projectList.length - 1} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('project', index, 1)}>↓</button></div><button className="text-cyan-400 text-sm" onClick={() => { setProjectImage(null); setProjectForm(project); }}>Edit</button><button className="text-red-400 text-sm" onClick={async () => { try { await deleteProject(project.id); await refresh(); setNotice('Project removed.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not remove project.'); } }}>Remove</button></Card>)}</div>
         {projectList.length === 0 && <p className="mt-4 text-sm text-muted">No projects yet. Add a project to publish it on the portfolio.</p>}
       </section>}
     </div>

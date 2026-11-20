@@ -17,7 +17,7 @@ export default function Contact() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.name.trim()) e.name = 'Name is required';
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) e.email = 'Valid email required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.description.trim()) e.description = 'Project description required';
     setErrors(e);
     return Object.keys(e).length === 0;

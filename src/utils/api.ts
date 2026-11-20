@@ -196,6 +196,10 @@ export async function getProjects() {
   return (await request('/api/projects')) as Project[];
 }
 
+export async function reorderProjects(ids: string[]) {
+  return request('/api/projects/order', { method: 'PATCH', body: JSON.stringify({ ids }) });
+}
+
 export async function addProject(project: FormData | (Partial<Project> & { title: string })) {
   return project instanceof FormData
     ? requestUpload('/api/projects', project)
@@ -219,6 +223,10 @@ export async function resetProjects() {
 // Leadership API
 export async function getLeadership() {
   return (await request('/api/leadership')) as Leader[];
+}
+
+export async function reorderLeadership(ids: string[]) {
+  return request('/api/leadership/order', { method: 'PATCH', body: JSON.stringify({ ids }) });
 }
 
 export async function addLeader(formData: FormData) {

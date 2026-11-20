@@ -22,7 +22,7 @@ export default function InternshipApply() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.fullName.trim()) e.fullName = 'Full name required';
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) e.email = 'Valid email required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.phone.trim()) e.phone = 'Phone required';
     if (!form.college.trim()) e.college = 'College required';
     if (!form.education.trim()) e.education = 'Education required';

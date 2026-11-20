@@ -16,7 +16,7 @@ export default function Careers() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.name.trim()) e.name = 'Name is required';
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) e.email = 'Valid email required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.position) e.position = 'Select a position';
     setErrors(e);
     return Object.keys(e).length === 0;

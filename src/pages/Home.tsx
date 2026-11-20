@@ -149,7 +149,7 @@ export default function Home() {
       <section className="py-24 bg-bg2/40">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <SectionHeading eyebrow="Leadership" title="Meet the Minds Behind Nextradev" subtitle="Driven by vision, powered by innovation, and united by a passion for building technology that makes a difference." />
-          <div className="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {leadership.map((l,i) => (
               <Card key={i}>
                 <motion.div initial={{opacity:0,y:20}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:i*0.1}}>

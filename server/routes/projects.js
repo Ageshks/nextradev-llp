@@ -26,7 +26,7 @@ function parseTags(tags) {
 
 // Public: list projects
 router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all();
+  const rows = db.prepare('SELECT * FROM projects ORDER BY display_order ASC, created_at DESC').all();
   res.json(rows.map(r => ({
     id: r.id,
     title: r.title,
@@ -35,6 +35,24 @@ router.get('/', (_req, res) => {
     tags: JSON.parse(r.tags || '[]'),
     image: r.image,
   })));
+});
+
+router.patch('/order', authMiddleware, (req, res) => {
+  const ids = req.body?.ids;
+  const current = db.prepare('SELECT id FROM projects ORDER BY display_order ASC, created_at DESC').all().map(row => row.id);
+  if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length || ids.some(id => !current.includes(id))) {
+    return res.status(400).json({ error: 'Order must contain every project exactly once' });
+  }
+  const update = db.prepare('UPDATE projects SET display_order = ? WHERE id = ?');
+  db.exec('BEGIN');
+  try {
+    ids.forEach((id, index) => update.run(index, id));
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  res.json({ message: 'Order saved' });
 });
 
 // Admin: add project
@@ -46,8 +64,9 @@ router.post('/', authMiddleware, upload.single('projectImage'), (req, res) => {
   const category = String(req.body?.category || 'Other').trim().slice(0, 80);
   const tags = parseTags(req.body?.tags);
   const image = req.file ? `/uploads/projects/${req.file.filename}` : String(req.body?.image || '/images/projects/placeholder.jpg').trim().slice(0, 255);
-  db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(id, title, description, category, JSON.stringify(tags), image, new Date().toISOString());
+  const order = db.prepare('SELECT COALESCE(MAX(display_order), -1) + 1 AS next FROM projects').get().next;
+  db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, title, description, category, JSON.stringify(tags), image, new Date().toISOString(), order);
   res.status(201).json({ id, message: 'Created' });
 });
 

@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS projects (
   category TEXT NOT NULL,
   tags TEXT NOT NULL DEFAULT '[]',
   image TEXT NOT NULL DEFAULT '/images/projects/placeholder.jpg',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  display_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS leadership (
   id TEXT PRIMARY KEY,
@@ -62,7 +63,8 @@ CREATE TABLE IF NOT EXISTS leadership (
   image TEXT NOT NULL DEFAULT '/images/founders/founder.png',
   linkedin TEXT DEFAULT '',
   twitter TEXT DEFAULT '',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  display_order INTEGER NOT NULL DEFAULT 0
 );
 `);
 
@@ -71,6 +73,18 @@ try {
   db.exec('ALTER TABLE openings ADD COLUMN course_fee TEXT NOT NULL DEFAULT \'To be confirmed\'');
 } catch {
   // column already exists
+}
+
+// Add manual ordering while preserving each table's current display order.
+for (const table of ['projects', 'leadership']) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0`);
+    const rows = db.prepare(`SELECT id FROM ${table} ORDER BY created_at DESC, rowid DESC`).all();
+    const update = db.prepare(`UPDATE ${table} SET display_order = ? WHERE id = ?`);
+    rows.forEach((row, index) => update.run(index, row.id));
+  } catch {
+    // Column already exists.
+  }
 }
 
 export const defaultOpenings = [
@@ -121,10 +135,10 @@ export function seedOpenings() {
 export function seedProjects() {
   const { c } = db.prepare('SELECT COUNT(*) AS c FROM projects').get();
   if (c === 0) {
-    const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     const now = new Date().toISOString();
     for (const p of defaultProjects) {
-      stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now);
+      stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now, defaultProjects.indexOf(p));
     }
   }
 }
@@ -132,10 +146,10 @@ export function seedProjects() {
 export function seedLeadership() {
   const { c } = db.prepare('SELECT COUNT(*) AS c FROM leadership').get();
   if (c === 0) {
-    const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     const now = new Date().toISOString();
     for (const l of defaultLeadership) {
-      stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now);
+      stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now, defaultLeadership.indexOf(l));
     }
   }
 }
@@ -150,19 +164,19 @@ export function resetOpeningsToDefaults() {
 
 export function resetProjectsToDefaults() {
   db.exec('DELETE FROM projects');
-  const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const now = new Date().toISOString();
   for (const p of defaultProjects) {
-    stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now);
+    stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now, defaultProjects.indexOf(p));
   }
 }
 
 export function resetLeadershipToDefaults() {
   db.exec('DELETE FROM leadership');
-  const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
   const now = new Date().toISOString();
   for (const l of defaultLeadership) {
-    stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now);
+    stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now, defaultLeadership.indexOf(l));
   }
 }
 
