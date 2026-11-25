@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -13,11 +13,13 @@ import useSEO from '../hooks/useSEO';
 export default function AdminInternships() {
   useSEO({ title: 'Admin | Internships', noindex: true });
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [authed, setAuthed] = useState(false);
   const [apps, setApps] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
   const [openings, setOpenings] = useState<any[]>([]);
-  const [tab, setTab] = useState<'apps' | 'openings' | 'projects' | 'leaders' | 'vacancies'>('apps');
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<'apps' | 'openings' | 'projects' | 'leaders' | 'vacancies'>(initialTab === 'projects' || initialTab === 'vacancies' || initialTab === 'openings' ? initialTab : 'apps');
   const [leaders, setLeaders] = useState<any[]>([]);
   const [projectList, setProjectList] = useState<any[]>([]);
   const [editingOpening, setEditingOpening] = useState<any | null>(null);

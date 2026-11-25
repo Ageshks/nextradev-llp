@@ -27,16 +27,22 @@ export default function EmployeeLogin() {
           throw new Error('This account does not have an employee profile. Contact your administrator.');
         }
         const role = String(employeeSnapshot.data().role || 'employee').toLowerCase();
-        if (role === 'admin') navigate('/admin/employees', { replace: true });
-        else navigate('/employee', { replace: true });
+        if (['admin', 'super_admin', 'super admin', 'hr', 'hr_manager'].includes(role)) navigate('/admin/employees', { replace: true });
+        else if (['employee', 'developer', 'project_manager', 'sales_executive', 'finance_manager'].includes(role)) navigate('/employee', { replace: true });
+        else {
+          await signOut(auth);
+          throw new Error('Your account role is not configured. Contact your administrator.');
+        }
       } else {
         await signOut(auth).catch(() => undefined);
         const account = await adminLogin(identifier.trim(), password);
         const role = account.role.toLowerCase();
-        if (role === 'admin' || role === 'hr') navigate('/admin/employees', { replace: true });
+        if (role === 'super_admin' || role === 'super admin' || role === 'admin') navigate('/admin', { replace: true });
+        else if (role === 'hr') navigate('/admin/employees', { replace: true });
         else navigate('/admin/tasks', { replace: true });
       }
     } catch (reason: unknown) {
+      if (identifier.includes('@')) await signOut(auth).catch(() => undefined);
       setError(reason instanceof Error ? reason.message : 'Sign in failed. Check your credentials and try again.');
     } finally {
       setBusy(false);
