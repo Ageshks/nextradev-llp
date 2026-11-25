@@ -1,7 +1,11 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { doc, getDoc } from 'firebase/firestore';
 import MainLayout from './layouts/MainLayout';
+import { useAuthListener } from './context/AuthContext';
+import { db } from './lib/firebase';
+import { verifyAdminToken } from './utils/api';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -13,7 +17,6 @@ const Internships = lazy(() => import('./pages/Internships'));
 const InternshipApply = lazy(() => import('./pages/InternshipApply'));
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
 const EmployeeLogin = lazy(() => import('./pages/EmployeeLogin'));
-const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AdminInternships = lazy(() => import('./pages/AdminInternships'));
 const AdminTasks = lazy(() => import('./pages/admin/AdminTasks'));
 const AdminEmployees = lazy(() => import('./pages/admin/AdminEmployees'));
@@ -26,6 +29,27 @@ function ScrollToTop() {
 }
 
 function Fallback() { return <div className="min-h-[60vh] grid place-items-center text-muted">Loading…</div>; }
+
+function EmployeeGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuthListener();
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    if (!user) { setAuthorized(false); return; }
+    getDoc(doc(db, 'employees', user.uid)).then(snapshot => {
+      setAuthorized(snapshot.exists() && String(snapshot.data().role || 'employee').toLowerCase() === 'employee');
+    }).catch(() => setAuthorized(false));
+  }, [loading, user]);
+  if (loading || authorized === null) return <Fallback />;
+  return authorized ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+  useEffect(() => { verifyAdminToken().then(setAuthorized); }, []);
+  if (authorized === null) return <Fallback />;
+  return authorized ? <>{children}</> : <Navigate to="/login" replace />;
+}
 
 export default function App() {
   return (
@@ -42,13 +66,13 @@ export default function App() {
             <Route path="/contact" element={<Suspense fallback={<Fallback/>}><Contact /></Suspense>} />
             <Route path="/internships" element={<Suspense fallback={<Fallback/>}><Internships /></Suspense>} />
             <Route path="/internships/apply" element={<Suspense fallback={<Fallback/>}><InternshipApply /></Suspense>} />
-            <Route path="/employee" element={<Suspense fallback={<Fallback/>}><EmployeeDashboard /></Suspense>} />
+            <Route path="/employee" element={<EmployeeGuard><Suspense fallback={<Fallback/>}><EmployeeDashboard /></Suspense></EmployeeGuard>} />
             <Route path="/login" element={<Suspense fallback={<Fallback/>}><EmployeeLogin /></Suspense>} />
             <Route path="*" element={<Suspense fallback={<Fallback/>}><NotFound /></Suspense>} />
-            <Route path="/admin/login" element={<Suspense fallback={<Fallback/>}><AdminLogin /></Suspense>} />
-            <Route path="/admin/internships" element={<Suspense fallback={<Fallback/>}><AdminInternships /></Suspense>} />
-            <Route path="/admin/tasks" element={<Suspense fallback={<Fallback/>}><AdminTasks /></Suspense>} />
-            <Route path="/admin/employees" element={<Suspense fallback={<Fallback/>}><AdminEmployees /></Suspense>} />
+            <Route path="/admin/login" element={<Suspense fallback={<Fallback/>}><EmployeeLogin /></Suspense>} />
+            <Route path="/admin/internships" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminInternships /></Suspense></AdminGuard>} />
+            <Route path="/admin/tasks" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminTasks /></Suspense></AdminGuard>} />
+            <Route path="/admin/employees" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminEmployees /></Suspense></AdminGuard>} />
           </Route>
         </Routes>
       </AnimatePresence>

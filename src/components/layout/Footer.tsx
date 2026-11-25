@@ -11,7 +11,7 @@ export default function Footer() {
           </div>
           <p className="text-sm text-muted">Technology That Moves Businesses Forward.</p>
           <ul className="space-y-2 text-sm text-muted mt-4">
-            <li><Link to="/admin/login" className="hover:text-cyan-400">Login</Link></li>
+            <li><Link to="/login" className="hover:text-cyan-400">Login</Link></li>
           </ul>
         </div>
         <div>
