@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { getApplications, getApplication, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
+import { addCareerVacancy, deleteCareerVacancy, getCareerVacancies, updateCareerVacancy } from '../utils/api';
 import { resolveMediaUrl } from '../utils/api';
 import { reorderLeadership, reorderProjects } from '../utils/api';
 import { internships, internshipStatuses } from '../data/internships';
@@ -16,12 +17,14 @@ export default function AdminInternships() {
   const [apps, setApps] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
   const [openings, setOpenings] = useState<any[]>([]);
-  const [tab, setTab] = useState<'apps' | 'openings' | 'projects' | 'leaders'>('apps');
+  const [tab, setTab] = useState<'apps' | 'openings' | 'projects' | 'leaders' | 'vacancies'>('apps');
   const [leaders, setLeaders] = useState<any[]>([]);
   const [projectList, setProjectList] = useState<any[]>([]);
   const [editingOpening, setEditingOpening] = useState<any | null>(null);
   const [leaderForm, setLeaderForm] = useState<any | null>(null);
   const [projectForm, setProjectForm] = useState<any | null>(null);
+  const [vacancies, setVacancies] = useState<any[]>([]);
+  const [vacancyForm, setVacancyForm] = useState<any | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [projectImage, setProjectImage] = useState<File | null>(null);
   const [notice, setNotice] = useState('');
@@ -36,11 +39,12 @@ export default function AdminInternships() {
 
   const refresh = async () => {
     try {
-      const [a, o, l, p] = await Promise.all([getApplications(), getOpenings(), getLeadership(), getProjects()]);
+      const [a, o, l, p, v] = await Promise.all([getApplications(), getOpenings(), getLeadership(), getProjects(), getCareerVacancies(true)]);
       setApps(Array.isArray(a) ? a : []);
       setOpenings(Array.isArray(o) ? o : internships);
       setLeaders(Array.isArray(l) ? l : []);
       setProjectList(Array.isArray(p) ? p : []);
+      setVacancies(Array.isArray(v) ? v : []);
     } catch {
       // ignore
     }
@@ -109,6 +113,22 @@ export default function AdminInternships() {
       setProjectForm(null); setProjectImage(null); await refresh(); setNotice('Project saved.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save project.'); }
   };
+  const saveVacancy = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      title: String(form.get('title') || ''),
+      type: String(form.get('type') || 'Full-time'),
+      location: String(form.get('location') || ''),
+      description: String(form.get('description') || ''),
+      isOpen: form.get('isOpen') === 'on',
+    };
+    try {
+      if (vacancyForm.id) await updateCareerVacancy(vacancyForm.id, payload);
+      else await addCareerVacancy(payload);
+      setVacancyForm(null); await refresh(); setNotice('Career vacancy saved.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save career vacancy.'); }
+  };
   const moveItem = async (kind: 'project' | 'founder', index: number, delta: -1 | 1) => {
     const list = kind === 'project' ? [...projectList] : [...leaders];
     const target = index + delta;
@@ -133,14 +153,16 @@ export default function AdminInternships() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex items-center justify-between mb-6">
-        <SectionHeading title="Internship Applications (Admin)" />
+        <SectionHeading title="Company Admin Workspace" />
         <div className="flex gap-2">
+          <Link to="/admin/employees" className="rounded-full border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/10">Staff & Attendance</Link>
+          <Link to="/admin/tasks" className="rounded-full border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/10">Team Tasks</Link>
           <Button onClick={exportCsv}>Export CSV</Button>
           <Button variant="ghost" onClick={logout}>Logout</Button>
         </div>
       </div>
       <div className="mb-6 flex flex-wrap gap-2">
-        {([['apps','Applications'],['openings','Openings'],['projects','Projects'],['leaders','Founders']] as const).map(([key,label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-4 py-2 text-sm ${tab===key?'bg-blue-600 text-white':'bg-white/10 text-muted'}`}>{label}</button>)}
+        {([['apps','Applications'],['openings','Opportunities'],['vacancies','Career vacancies'],['projects','Projects'],['leaders','Founders']] as const).map(([key,label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-4 py-2 text-sm ${tab===key?'bg-blue-600 text-white':'bg-white/10 text-muted'}`}>{label}</button>)}
       </div>
       {notice && <p role="status" className="mb-4 text-sm text-cyan-300">{notice}</p>}
       {tab === 'apps' && <><div className="mb-4 flex flex-wrap gap-2">
@@ -207,6 +229,21 @@ export default function AdminInternships() {
           ))}
         </div>
       </div>}
+
+      {tab === 'vacancies' && <section>
+        <div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-semibold text-white">Career vacancies</h3><p className="text-sm text-muted">Publish and update the roles shown on the public Careers page.</p></div><Button onClick={() => setVacancyForm({ title:'', type:'Full-time', location:'India (Remote/Hybrid)', description:'', isOpen:true })}>Add Vacancy</Button></div>
+        {vacancyForm && <form onSubmit={saveVacancy} className="mb-6 grid gap-3 rounded-xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
+          <h4 className="text-white font-semibold sm:col-span-2">{vacancyForm.id ? 'Edit vacancy' : 'Add vacancy'}</h4>
+          <label className="text-sm text-muted">Role title<input required name="title" defaultValue={vacancyForm.title} className={inputClass}/></label>
+          <label className="text-sm text-muted">Employment type<input required name="type" defaultValue={vacancyForm.type} className={inputClass}/></label>
+          <label className="text-sm text-muted sm:col-span-2">Location<input name="location" defaultValue={vacancyForm.location} className={inputClass}/></label>
+          <label className="text-sm text-muted sm:col-span-2">Description<textarea name="description" rows={3} defaultValue={vacancyForm.description} className={inputClass}/></label>
+          <label className="flex items-center gap-2 text-sm text-muted sm:col-span-2"><input type="checkbox" name="isOpen" defaultChecked={vacancyForm.isOpen}/> Published on Careers page</label>
+          <div className="flex gap-2 sm:col-span-2"><Button type="submit">Save vacancy</Button><Button type="button" variant="ghost" onClick={() => setVacancyForm(null)}>Cancel</Button></div>
+        </form>}
+        <div className="grid gap-3">{vacancies.map(v => <Card key={v.id} className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium text-white">{v.title}</p><p className="text-sm text-muted">{v.type} · {v.location} · {v.isOpen ? 'Published' : 'Draft'}</p><p className="mt-1 text-sm text-muted">{v.description}</p></div><div className="flex gap-4"><button onClick={() => setVacancyForm(v)} className="text-cyan-400 text-sm">Edit</button><button onClick={async () => { try { await deleteCareerVacancy(v.id); await refresh(); setNotice('Vacancy removed.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not remove vacancy.'); } }} className="text-red-400 text-sm">Remove</button></div></Card>)}</div>
+        {!vacancies.length && <p className="mt-4 text-sm text-muted">No career vacancies found.</p>}
+      </section>}
 
       {tab === 'leaders' && <section>
         <div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-semibold text-white">Founder profiles</h3><p className="text-sm text-muted">Upload a photo and manage the details shown on the About and Home pages.</p></div><Button onClick={() => { setPhoto(null); setLeaderForm({ name:'', designation:'', bio:'', linkedin:'', twitter:'' }); }}>Add Founder</Button></div>

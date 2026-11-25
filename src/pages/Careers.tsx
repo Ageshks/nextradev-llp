@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SectionHeading from '../components/ui/SectionHeading';
 import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { jobs } from '../data/careers';
+import { getCareerVacancies } from '../utils/api';
 const API_URL = import.meta.env.VITE_CAREERS_API_URL as string | undefined;
 
 export default function Careers() {
@@ -12,6 +13,11 @@ export default function Careers() {
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');
   const [message, setMessage] = useState('');
+  const [vacancies, setVacancies] = useState(jobs);
+
+  useEffect(() => {
+    getCareerVacancies().then(rows => setVacancies(rows)).catch(() => setVacancies(jobs));
+  }, []);
 
   const validate = () => {
     const e: Record<string,string> = {};
@@ -44,9 +50,9 @@ export default function Careers() {
         <Card><h3 className="text-white font-semibold mb-2">Internship Opportunities</h3><p className="text-muted">Hands-on experience for students and early professionals.</p></Card>
       </div>
       <SectionHeading title="Open Positions" />
-      <p className="text-muted text-center mb-6 text-sm">Sample vacancies for demonstration; managed via structured data source.</p>
+      <p className="text-muted text-center mb-6 text-sm">Explore current opportunities at Nextradev.</p>
       <div className="grid gap-4 mb-12">
-        {jobs.map(j => (
+        {vacancies.map(j => (
           <Card key={j.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -75,7 +81,7 @@ export default function Careers() {
           <div>
             <select value={form.position} onChange={e=>setForm({...form,position:e.target.value})} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-cyan-400">
               <option value="">Select position</option>
-              {jobs.map(j => <option key={j.id} value={j.title}>{j.title}</option>)}
+              {vacancies.map(j => <option key={j.id} value={j.title}>{j.title}</option>)}
             </select>
             {errors.position && <p className="text-red-400 text-xs mt-1">{errors.position}</p>}
           </div>

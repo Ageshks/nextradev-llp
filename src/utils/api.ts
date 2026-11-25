@@ -46,6 +46,15 @@ export interface Leader {
   twitter: string;
 }
 
+export interface CareerVacancy {
+  id: string;
+  title: string;
+  type: string;
+  location: string;
+  description: string;
+  isOpen: boolean;
+}
+
 // Accept either an origin (https://api.example.com) or an API root
 // (https://api.example.com/api); request paths below already include /api.
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '').replace(/\/api$/, '');
@@ -185,6 +194,22 @@ export async function deleteOpening(id: string) {
 
 export async function resetOpenings() {
   await request('/api/openings/reset', { method: 'POST' });
+}
+
+export async function getCareerVacancies(admin = false) {
+  return (await request(admin ? '/api/careers/admin' : '/api/careers')) as CareerVacancy[];
+}
+
+export async function addCareerVacancy(vacancy: Partial<CareerVacancy> & { title: string }) {
+  return request('/api/careers', { method: 'POST', body: JSON.stringify(vacancy) });
+}
+
+export async function updateCareerVacancy(id: string, vacancy: Partial<CareerVacancy> & { title: string }) {
+  return request(`/api/careers/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(vacancy) });
+}
+
+export async function deleteCareerVacancy(id: string) {
+  await request(`/api/careers/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 export async function verifyAdminToken() {

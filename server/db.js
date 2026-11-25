@@ -18,6 +18,15 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'admin',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS career_vacancies (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  employment_type TEXT NOT NULL DEFAULT 'Full-time',
+  location TEXT NOT NULL DEFAULT 'India (Remote/Hybrid)',
+  description TEXT NOT NULL DEFAULT '',
+  is_open INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS applications (
   id TEXT PRIMARY KEY,
   full_name TEXT NOT NULL,
@@ -154,6 +163,21 @@ export function seedLeadership() {
   }
 }
 
+export function seedCareerVacancies() {
+  const { c } = db.prepare('SELECT COUNT(*) AS c FROM career_vacancies').get();
+  if (c !== 0) return;
+  const rows = [
+    ['flutter-dev', 'Flutter Developer', 'Full-time', 'India (Remote/Hybrid)', 'Build cross-platform mobile applications with Flutter.'],
+    ['react-dev', 'React Developer', 'Full-time', 'India (Remote/Hybrid)', 'Develop modern web applications using React and TypeScript.'],
+    ['backend-dev', 'Backend Developer', 'Full-time', 'India (Remote/Hybrid)', 'Design and build scalable backend services and APIs.'],
+    ['uiux-designer', 'UI/UX Designer', 'Full-time', 'India (Remote/Hybrid)', 'Create intuitive and beautiful digital experiences.'],
+    ['digital-marketing-intern', 'Digital Marketing Intern', 'Internship', 'India (Remote/Hybrid)', 'Support digital marketing campaigns and content.'],
+  ];
+  const insert = db.prepare('INSERT INTO career_vacancies (id,title,employment_type,location,description,is_open,created_at) VALUES (?,?,?,?,?,1,?)');
+  const now = new Date().toISOString();
+  for (const row of rows) insert.run(...row, now);
+}
+
 export function resetOpeningsToDefaults() {
   db.exec('DELETE FROM openings');
   const stmt = db.prepare('INSERT INTO openings (id, title, department, duration, compensation, course_fee, mode, skills, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -184,5 +208,6 @@ seedAdmin();
 seedOpenings();
 seedProjects();
 seedLeadership();
+seedCareerVacancies();
 
 export default db;
