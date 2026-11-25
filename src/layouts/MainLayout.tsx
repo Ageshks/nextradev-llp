@@ -4,6 +4,7 @@ import { BriefcaseBusiness, ClipboardList, LayoutDashboard, Users } from 'lucide
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { AuthProvider } from '../context/AuthContext';
+import '../pages/admin/AdminWorkspace.css';
 
 export default function MainLayout() {
   const { pathname } = useLocation();
@@ -12,7 +13,7 @@ export default function MainLayout() {
   const showAdminNav = isAdminPage && !isAdminWorkspace && pathname !== '/admin/login';
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-bg text-muted">
+      <div className={`min-h-screen ${isAdminPage ? 'bg-[#f6f8fb] text-[#152239]' : 'bg-bg text-muted'}`}>
         {!isAdminPage && <Navbar />}
         <div className={showAdminNav ? 'min-h-screen lg:flex' : ''}>
           {showAdminNav && <aside className="border-b border-slate-800 bg-slate-950 px-4 py-4 text-white lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
