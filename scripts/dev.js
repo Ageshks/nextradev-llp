@@ -3,8 +3,9 @@ import path from 'node:path';
 
 const children = [
   spawn(process.execPath, ['server/index.js'], { stdio: 'inherit' }),
-  spawn(process.execPath, [path.resolve('node_modules/vite/bin/vite.js')], { stdio: 'inherit' }),
+  spawn(process.execPath, [path.resolve('node_modules/vite/bin/vite.js'), '--host', '127.0.0.1'], { stdio: 'inherit' }),
 ];
+const labels = ['API server', 'Vite client'];
 let stopping = false;
 
 function stopAll(code = 0) {
@@ -23,8 +24,8 @@ for (const child of children) {
   });
   child.on('exit', (code, signal) => {
     if (!stopping) {
-      console.error(`Development process stopped (${signal || code}).`);
-      stopAll(code || 1);
+      console.error(`${labels[children.indexOf(child)]} stopped unexpectedly (${signal || `exit ${code}`}).`);
+      stopAll(code === 0 ? 1 : code ?? 1);
     }
   });
 }

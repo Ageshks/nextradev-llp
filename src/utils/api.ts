@@ -52,6 +52,11 @@ const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').re
 
 export function resolveMediaUrl(url: string) {
   if (/^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url;
+  // Server-relative path (starts with /), prepend API base
+  if (url.startsWith('/')) {
+    return `${API_BASE}${url}`;
+  }
+  // Relative path without leading slash
   return `${API_BASE}${url}`;
 }
 

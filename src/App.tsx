@@ -11,8 +11,12 @@ const Careers = lazy(() => import('./pages/Careers'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Internships = lazy(() => import('./pages/Internships'));
 const InternshipApply = lazy(() => import('./pages/InternshipApply'));
+const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
+const EmployeeLogin = lazy(() => import('./pages/EmployeeLogin'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AdminInternships = lazy(() => import('./pages/AdminInternships'));
+const AdminTasks = lazy(() => import('./pages/admin/AdminTasks'));
+const AdminEmployees = lazy(() => import('./pages/admin/AdminEmployees'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function ScrollToTop() {
@@ -38,9 +42,13 @@ export default function App() {
             <Route path="/contact" element={<Suspense fallback={<Fallback/>}><Contact /></Suspense>} />
             <Route path="/internships" element={<Suspense fallback={<Fallback/>}><Internships /></Suspense>} />
             <Route path="/internships/apply" element={<Suspense fallback={<Fallback/>}><InternshipApply /></Suspense>} />
+            <Route path="/employee" element={<Suspense fallback={<Fallback/>}><EmployeeDashboard /></Suspense>} />
+            <Route path="/login" element={<Suspense fallback={<Fallback/>}><EmployeeLogin /></Suspense>} />
             <Route path="*" element={<Suspense fallback={<Fallback/>}><NotFound /></Suspense>} />
             <Route path="/admin/login" element={<Suspense fallback={<Fallback/>}><AdminLogin /></Suspense>} />
             <Route path="/admin/internships" element={<Suspense fallback={<Fallback/>}><AdminInternships /></Suspense>} />
+            <Route path="/admin/tasks" element={<Suspense fallback={<Fallback/>}><AdminTasks /></Suspense>} />
+            <Route path="/admin/employees" element={<Suspense fallback={<Fallback/>}><AdminEmployees /></Suspense>} />
           </Route>
         </Routes>
       </AnimatePresence>
