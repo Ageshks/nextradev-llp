@@ -151,7 +151,8 @@ export default function AdminInternships() {
   const inputClass = 'w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-white';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+    <div className="min-h-screen w-full bg-[#080D1A] px-4 py-12 text-white sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl">
       <div className="flex items-center justify-between mb-6">
         <SectionHeading title="Company Admin Workspace" />
         <div className="flex gap-2">
@@ -274,6 +275,7 @@ export default function AdminInternships() {
         <div className="grid gap-3 sm:grid-cols-2">{projectList.map((project, index) => <Card key={project.id} className="flex items-center gap-4"><img src={resolveMediaUrl(project.image)} alt={project.title} className="h-20 w-24 rounded-lg bg-slate-900 object-cover" /><div className="min-w-0 flex-1"><p className="font-medium text-white">{project.title}</p><p className="text-sm text-muted">{project.category}</p></div><div className="flex flex-col gap-1"><button aria-label={`Move ${project.title} up`} disabled={index === 0} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('project', index, -1)}>↑</button><button aria-label={`Move ${project.title} down`} disabled={index === projectList.length - 1} className="text-cyan-400 disabled:opacity-30" onClick={() => void moveItem('project', index, 1)}>↓</button></div><button className="text-cyan-400 text-sm" onClick={() => { setProjectImage(null); setProjectForm(project); }}>Edit</button><button className="text-red-400 text-sm" onClick={async () => { try { await deleteProject(project.id); await refresh(); setNotice('Project removed.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not remove project.'); } }}>Remove</button></Card>)}</div>
         {projectList.length === 0 && <p className="mt-4 text-sm text-muted">No projects yet. Add a project to publish it on the portfolio.</p>}
       </section>}
+    </div>
     </div>
   );
 }
