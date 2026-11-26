@@ -104,12 +104,26 @@ CREATE TABLE IF NOT EXISTS workplace_settings (
 CREATE TABLE IF NOT EXISTS checkout_requests (
   id TEXT PRIMARY KEY, employee_id TEXT NOT NULL, attendance_id TEXT NOT NULL,
   distance_meters INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, resolved_at TEXT NOT NULL DEFAULT '', resolved_by TEXT NOT NULL DEFAULT ''
+  status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, resolved_at TEXT NOT NULL DEFAULT '', resolved_by TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT '', attempt_at TEXT NOT NULL DEFAULT '', accuracy_meters REAL, admin_remarks TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS workforce_audit_logs (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, action TEXT NOT NULL, module TEXT NOT NULL,
+  entity_id TEXT NOT NULL DEFAULT '', previous_value TEXT NOT NULL DEFAULT '', updated_value TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS workforce_migrations (
   name TEXT PRIMARY KEY, completed_at TEXT NOT NULL
 );
 `);
+
+for (const [table, column] of [
+  ['checkout_requests', "reason TEXT NOT NULL DEFAULT ''"],
+  ['checkout_requests', "attempt_at TEXT NOT NULL DEFAULT ''"],
+  ['checkout_requests', 'accuracy_meters REAL'],
+  ['checkout_requests', "admin_remarks TEXT NOT NULL DEFAULT ''"],
+]) {
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`); } catch { /* already present */ }
+}
 
 // Migration: add course_fee column to existing databases
 try {

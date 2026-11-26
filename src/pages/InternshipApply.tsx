@@ -24,7 +24,6 @@ export default function InternshipApply() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.fullName.trim()) e.fullName = 'Full name required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.phone.trim()) e.phone = 'Phone required';
     if (!form.college.trim()) e.college = 'College required';
     if (!form.education.trim()) e.education = 'Education required';
@@ -99,7 +98,6 @@ export default function InternshipApply() {
             </div>
             <div>
               <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email Address *" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">

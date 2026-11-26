@@ -21,6 +21,7 @@ const requireLocation = value => {
 const mapEmployee = row => ({ id: row.uid, uid: row.uid, email: row.email, name: row.name, role: row.role, department: row.department, title: row.title, employeeCode: row.employee_code, active: Boolean(row.active), createdAt: row.created_at });
 const mapAttendance = row => ({ id: row.id, employeeId: row.employee_id, date: row.date, checkIn: row.check_in, checkOut: row.check_out, checkInLocation: row.check_in_lat == null ? null : { latitude: row.check_in_lat, longitude: row.check_in_lng }, checkOutLocation: row.check_out_lat == null ? null : { latitude: row.check_out_lat, longitude: row.check_out_lng }, status: row.status, updatedAt: row.updated_at });
 const changed = entity => workforceEvents.emit('change', { entity, at: stamp() });
+const audit = (userId, action, entityId, previousValue = '', updatedValue = '') => db.prepare('INSERT INTO workforce_audit_logs(id,user_id,action,module,entity_id,previous_value,updated_value,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), userId, action, 'attendance_regularisation', entityId, JSON.stringify(previousValue), JSON.stringify(updatedValue), stamp());
 const getEmployee = uid => db.prepare('SELECT * FROM employee_profiles WHERE uid=?').get(uid);
 const isAdmin = user => isAdminRole(user?.role);
 
@@ -79,7 +80,17 @@ router.post('/migration/import', adminMiddleware, (req, res) => {
 
 router.get('/me', workforceUserMiddleware, (req, res) => {
   const saved = getEmployee(req.user.uid);
-  res.json({ uid: req.user.uid, email: saved?.email || req.user.email, name: saved?.name || req.user.name, role: saved?.role || req.user.role, department: saved?.department || '', title: saved?.title || '', employeeCode: saved?.employee_code || '', active: saved ? Boolean(saved.active) : true });
+  const profile = req.user.profile || {};
+  res.json({
+    uid: req.user.uid,
+    email: profile.email || saved?.email || req.user.email,
+    name: profile.name || saved?.name || req.user.name,
+    role: req.user.role,
+    department: profile.department || saved?.department || '',
+    title: profile.title || saved?.title || '',
+    employeeCode: profile.employeeCode || saved?.employee_code || '',
+    active: req.user.active,
+  });
 });
 
 router.get('/events', workforceUserMiddleware, (req, res) => {
@@ -134,6 +145,9 @@ router.get('/attendance', workforceUserMiddleware, (req, res) => {
 router.post('/attendance/check-in', workforceUserMiddleware, (req, res) => {
   const location = requireLocation(req.body?.location), date = clean(req.body?.date, 10);
   if (!location || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'A valid date and current location are required.' });
+  const accuracy = Number(req.body?.accuracyMeters);
+  if (!Number.isFinite(accuracy) || accuracy < 0) return res.status(400).json({ error: 'GPS accuracy is required to verify attendance.' });
+  if (accuracy > 100) return res.status(422).json({ error: `GPS accuracy is too low (${Math.round(accuracy)}m). Move to an open area and try again, or request attendance regularisation.` });
   const workplace = db.prepare('SELECT * FROM workplace_settings WHERE id=1').get();
   if (!workplace) return res.status(409).json({ error: 'The workplace location has not been configured.' });
   const distance = distanceMeters(location, workplace);
@@ -146,43 +160,74 @@ router.post('/attendance/check-in', workforceUserMiddleware, (req, res) => {
 router.post('/attendance/check-out', workforceUserMiddleware, (req, res) => {
   const location = requireLocation(req.body?.location), date = clean(req.body?.date, 10), id = `${req.user.uid}_${date}`;
   if (!location || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'A valid date and current location are required.' });
+  const accuracy = Number(req.body?.accuracyMeters);
+  if (!Number.isFinite(accuracy) || accuracy < 0) return res.status(400).json({ error: 'GPS accuracy is required to verify attendance.' });
   const record = db.prepare('SELECT * FROM attendance WHERE id=? AND employee_id=?').get(id, req.user.uid);
   if (!record?.check_in) return res.status(404).json({ error: 'Check in before checking out.' });
   if (record.check_out) return res.status(409).json({ error: 'You have already checked out for this date.' });
   const workplace = db.prepare('SELECT * FROM workplace_settings WHERE id=1').get();
   if (!workplace) return res.status(409).json({ error: 'The workplace location has not been configured.' });
   const distance = distanceMeters(location, workplace), now = stamp();
-  if (distance > workplace.radius_meters) {
+  if (distance > workplace.radius_meters || accuracy > 100) {
     const pending = db.prepare("SELECT id FROM checkout_requests WHERE attendance_id=? AND status='pending'").get(id);
     if (pending) return res.status(200).json({ requestPending: true, message: 'Your checkout request is awaiting administrator review.' });
     const requestId = randomUUID();
-    db.prepare('INSERT INTO checkout_requests(id,employee_id,attendance_id,distance_meters,latitude,longitude,created_at) VALUES(?,?,?,?,?,?,?)').run(requestId, req.user.uid, id, distance, location.latitude, location.longitude, now);
+    const reason = clean(req.body?.reason, 1000);
+    if (!reason) return res.status(422).json({ error: accuracy > 100 ? 'GPS accuracy is too low. Enter a reason to submit an attendance regularisation request.' : 'You are outside the office geofence. Enter a reason to submit an attendance regularisation request.' });
+    db.prepare('INSERT INTO checkout_requests(id,employee_id,attendance_id,distance_meters,latitude,longitude,created_at,reason,attempt_at,accuracy_meters) VALUES(?,?,?,?,?,?,?,?,?,?)').run(requestId, req.user.uid, id, distance, location.latitude, location.longitude, now, reason, now, accuracy);
+    audit(req.user.uid, 'request_submitted', requestId, '', { attendanceId: id, reason, distanceMeters: distance, accuracyMeters: accuracy });
     changed('checkout_requests'); return res.status(202).json({ requestPending: true, message: `You are ${distance}m from the workplace. A checkout request was sent to an administrator.` });
   }
   const hours = (Date.now() - new Date(record.check_in).getTime()) / 3600000;
   db.prepare('UPDATE attendance SET check_out=?,check_out_lat=?,check_out_lng=?,status=?,updated_at=? WHERE id=? AND check_out IS NULL').run(now, location.latitude, location.longitude, hours < 4 ? 'half-day' : 'present', now, id);
   changed('attendance'); res.json(mapAttendance(db.prepare('SELECT * FROM attendance WHERE id=?').get(id)));
 });
+
+router.post('/regularisation', workforceUserMiddleware, (req, res) => {
+  const date = clean(req.body?.date, 10), reason = clean(req.body?.reason, 1000), category = clean(req.body?.category || 'forgotten-checkout', 40);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || reason.length < 3) return res.status(400).json({ error: 'Select a valid attendance date and provide a reason.' });
+  const attendanceId = `${req.user.uid}_${date}`;
+  const attendance = db.prepare('SELECT * FROM attendance WHERE id=? AND employee_id=?').get(attendanceId, req.user.uid);
+  if (!attendance?.check_in) return res.status(404).json({ error: 'A checked-in attendance record is required for regularisation.' });
+  if (attendance.check_out) return res.status(409).json({ error: 'This attendance record is already complete.' });
+  const existing = db.prepare("SELECT id FROM checkout_requests WHERE attendance_id=? AND status='pending'").get(attendanceId);
+  if (existing) return res.status(409).json({ error: 'A regularisation request is already pending for this date.' });
+  const id = randomUUID(), now = stamp(), location = requireLocation(req.body?.location);
+  db.prepare('INSERT INTO checkout_requests(id,employee_id,attendance_id,distance_meters,latitude,longitude,status,created_at,reason,attempt_at,accuracy_meters) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id, req.user.uid, attendanceId, Number(req.body?.distanceMeters) || 0, location?.latitude ?? 0, location?.longitude ?? 0, 'pending', now, `${category}: ${reason}`, clean(req.body?.attemptAt, 40) || now, Number.isFinite(Number(req.body?.accuracyMeters)) ? Number(req.body.accuracyMeters) : null);
+  audit(req.user.uid, 'request_submitted', id, '', { attendanceId, reason, category });
+  changed('checkout_requests');
+  res.status(201).json({ id, status: 'pending' });
+});
 router.get('/checkout-requests', workforceUserMiddleware, (req, res) => {
   const rows = isAdmin(req.user)
     ? db.prepare("SELECT * FROM checkout_requests WHERE status='pending' ORDER BY created_at").all()
     : db.prepare('SELECT * FROM checkout_requests WHERE employee_id=? ORDER BY created_at DESC').all(req.user.uid);
-  res.json(rows.map(row => ({ id: row.id, employeeId: row.employee_id, attendanceId: row.attendance_id, distanceMeters: row.distance_meters, status: row.status, createdAt: row.created_at })));
+  res.json(rows.map(row => ({ id: row.id, employeeId: row.employee_id, attendanceId: row.attendance_id, date: row.attendance_id.slice(-10), checkIn: db.prepare('SELECT check_in FROM attendance WHERE id=?').get(row.attendance_id)?.check_in || null, distanceMeters: row.distance_meters, location: row.accuracy_meters == null ? null : { latitude: row.latitude, longitude: row.longitude }, accuracyMeters: row.accuracy_meters, reason: row.reason, attemptAt: row.attempt_at || row.created_at, adminRemarks: row.admin_remarks, status: row.status, createdAt: row.created_at })));
 });
-router.post('/checkout-requests/:id/approve', adminMiddleware, (req, res) => {
+router.get('/audit-logs', adminMiddleware, (req, res) => {
+  const rows = db.prepare("SELECT * FROM workforce_audit_logs WHERE module='attendance_regularisation' ORDER BY created_at DESC LIMIT 500").all();
+  res.json(rows.map(row => ({ id: row.id, userId: row.user_id, action: row.action, module: row.module, entityId: row.entity_id, previousValue: row.previous_value, updatedValue: row.updated_value, createdAt: row.created_at })));
+});
+const reviewCheckoutRequest = (req, res) => {
   const request = db.prepare("SELECT * FROM checkout_requests WHERE id=? AND status='pending'").get(req.params.id);
   if (!request) return res.status(404).json({ error: 'Pending checkout request not found.' });
+  const decision = clean(req.body?.status, 20), remarks = clean(req.body?.remarks, 1000);
+  if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'Choose approve or reject.' });
+  if (decision === 'rejected' && !remarks) return res.status(400).json({ error: 'Add a remark when rejecting a request.' });
   const attendance = db.prepare('SELECT * FROM attendance WHERE id=?').get(request.attendance_id);
   if (!attendance || attendance.check_out) return res.status(409).json({ error: 'Attendance is missing or already checked out.' });
-  const now = stamp(), hours = (Date.now() - new Date(attendance.check_in).getTime()) / 3600000;
+  const now = stamp(), checkoutTime = request.attempt_at || now, hours = (new Date(checkoutTime).getTime() - new Date(attendance.check_in).getTime()) / 3600000;
   db.exec('BEGIN IMMEDIATE');
   try {
-    db.prepare('UPDATE attendance SET check_out=?,check_out_lat=?,check_out_lng=?,status=?,updated_at=? WHERE id=?').run(now, request.latitude, request.longitude, hours < 4 ? 'half-day' : 'present', now, attendance.id);
-    db.prepare("UPDATE checkout_requests SET status='approved',resolved_at=?,resolved_by=? WHERE id=?").run(now, req.user.uid, request.id);
+    if (decision === 'approved') db.prepare('UPDATE attendance SET check_out=?,check_out_lat=?,check_out_lng=?,status=?,updated_at=? WHERE id=?').run(checkoutTime, request.latitude, request.longitude, hours < 4 ? 'half-day' : 'present', now, attendance.id);
+    db.prepare('UPDATE checkout_requests SET status=?,resolved_at=?,resolved_by=?,admin_remarks=? WHERE id=?').run(decision, now, req.user.uid, remarks, request.id);
+    audit(req.user.uid, `request_${decision}`, request.id, { status: 'pending' }, { status: decision, remarks, attendanceId: attendance.id });
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   changed('attendance'); changed('checkout_requests'); res.json({ ok: true });
-});
+};
+router.post('/checkout-requests/:id/review', adminMiddleware, reviewCheckoutRequest);
+router.post('/checkout-requests/:id/approve', adminMiddleware, (req, res) => { req.body = { ...req.body, status: 'approved' }; return reviewCheckoutRequest(req, res); });
 
 router.get('/tasks', workforceUserMiddleware, (req, res) => {
   const rows = isAdmin(req.user) ? db.prepare('SELECT * FROM workforce_tasks ORDER BY created_at DESC').all() : db.prepare('SELECT * FROM workforce_tasks WHERE employee_id=? ORDER BY created_at DESC').all(req.user.uid);

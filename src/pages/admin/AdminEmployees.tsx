@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Clock3, MapPin, Users } from 'lucide-react';
-import { approveCheckout as apiApproveCheckout, listAttendance, listCheckoutRequests, listEmployees, listLeaves, publishCalendarEvent as apiPublishCalendarEvent, reviewLeave as apiReviewLeave, saveEmployee as apiSaveEmployee, saveWorkplace as apiSaveWorkplace, getWorkplace, subscribeWorkforce } from '../../utils/workforceApi';
+import { reviewCheckout as apiReviewCheckout, listAttendance, listCheckoutRequests, listEmployees, listLeaves, publishCalendarEvent as apiPublishCalendarEvent, reviewLeave as apiReviewLeave, saveEmployee as apiSaveEmployee, saveWorkplace as apiSaveWorkplace, getWorkplace, subscribeWorkforce } from '../../utils/workforceApi';
 import './AdminWorkspace.css';
 
 type Item = { id: string; [key: string]: any };
@@ -16,6 +16,7 @@ export default function AdminEmployees() {
   const [dataError, setDataError] = useState('');
   const [working, setWorking] = useState('');
   const [message, setMessage] = useState('');
+  const [checkoutRemarks, setCheckoutRemarks] = useState<Record<string, string>>({});
   const [attendanceDate, setAttendanceDate] = useState(localDate());
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -88,13 +89,14 @@ export default function AdminEmployees() {
     }
   };
 
-  const approveCheckout = async (request: Item) => {
+  const resolveCheckout = async (request: Item, status: 'approved' | 'rejected') => {
     setWorking(request.id); setMessage('');
     try {
-      await apiApproveCheckout(request.id);
-      setMessage('Checkout approved and attendance updated.');
+      await apiReviewCheckout(request.id, status, checkoutRemarks[request.id] || '');
+      setMessage(status === 'approved' ? 'Checkout approved and attendance updated.' : 'Regularisation request rejected.');
+      setCheckoutRemarks(current => ({ ...current, [request.id]: '' }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not approve checkout.');
+      setMessage(error instanceof Error ? error.message : 'Could not review attendance request.');
     } finally {
       setWorking('');
     }
@@ -157,7 +159,7 @@ export default function AdminEmployees() {
         <div className="md:col-span-4 panel-heading"><div><h2>Employee directory</h2><p>Create the Firebase account first, then connect its UID to the live employee record.</p></div></div>
         <input required className={inputClass} aria-label="Firebase user ID" placeholder="Firebase user ID" value={employeeId} onChange={event => setEmployeeId(event.target.value)}/>
         <input required maxLength={120} className={inputClass} aria-label="Employee name" placeholder="Employee name" value={employeeName} onChange={event => setEmployeeName(event.target.value)}/>
-        <input required type="email" className={inputClass} aria-label="Work email" placeholder="Work email" value={employeeEmail} onChange={event => setEmployeeEmail(event.target.value)}/>
+        <input required type="text" inputMode="email" className={inputClass} aria-label="Work email" placeholder="Work email" value={employeeEmail} onChange={event => setEmployeeEmail(event.target.value)}/>
         <button className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white">Save employee</button>
         <div className="flex flex-wrap gap-2 md:col-span-4">{employees.map(employee => <span key={employee.id} className="inline-block rounded-full bg-slate-100 px-3 py-1 text-sm">{employee.name || 'Unnamed'} · {employee.email || employee.id}</span>)}</div>
       </form>
@@ -169,7 +171,7 @@ export default function AdminEmployees() {
         {!dataLoading && !dataError && !visibleAttendance.length && <p className="mt-3 text-sm text-slate-500">No attendance records for this date.</p>}
       </section>
 
-      <section className="panel"><div className="panel-heading"><div><h2>Checkout approvals</h2><p>Pending location exception requests.</p></div></div>{requests.map(request => <div key={request.id} className="employee-request-row"><div><strong>{request.employeeName || employeeFor(request.employeeId)?.name || request.employeeId}</strong><p>{request.distanceMeters}m from workplace · {request.createdAt ? new Date(request.createdAt).toLocaleString() : ''}</p></div><button disabled={working === request.id} className="primary-action" onClick={() => approveCheckout(request)}>{working === request.id ? 'Approving…' : 'Approve checkout'}</button></div>)}{!requests.length && !dataLoading && <p className="employee-empty">No pending checkout approvals.</p>}</section>
+      <section className="panel"><div className="panel-heading"><div><h2>Attendance regularisation</h2><p>Review location and attendance exceptions submitted by employees.</p></div></div>{requests.map(request => <article key={request.id} className="employee-request-row"><div className="min-w-0"><strong>{request.employeeName || employeeFor(request.employeeId)?.name || request.employeeId}</strong><p>{request.date} · Check in {request.checkIn ? new Date(request.checkIn).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—'} · Attempt {request.attemptAt ? new Date(request.attemptAt).toLocaleString() : new Date(request.createdAt).toLocaleString()}</p><p>{request.distanceMeters}m from workplace · GPS accuracy {request.accuracyMeters == null ? 'unavailable' : `${Math.round(request.accuracyMeters)}m`}</p><p className="mt-1 text-slate-700">{request.reason || 'No reason provided'}</p>{request.location && <p>Captured location: {Number(request.location.latitude).toFixed(5)}, {Number(request.location.longitude).toFixed(5)}</p>}<textarea aria-label="Admin remarks" className={`${inputClass} mt-2`} rows={2} placeholder="Admin remarks (required for rejection)" value={checkoutRemarks[request.id] || ''} onChange={event => setCheckoutRemarks(current => ({...current, [request.id]: event.target.value}))}/></div><div className="employee-request-actions"><button disabled={working === request.id} className="primary-action" onClick={() => void resolveCheckout(request, 'approved')}>{working === request.id ? 'Saving…' : 'Approve'}</button><button disabled={working === request.id || !checkoutRemarks[request.id]?.trim()} className="range-select" onClick={() => void resolveCheckout(request, 'rejected')}>Reject</button></div></article>)}{!requests.length && !dataLoading && <p className="employee-empty">No pending regularisation requests.</p>}</section>
 
       <section className="panel"><div className="panel-heading"><div><h2>Leave requests</h2><p>Review requests submitted by employees.</p></div></div>{leaves.map(leave => <div key={leave.id} className="employee-request-row"><div><strong>{leave.employeeName || employeeFor(leave.employeeId)?.name || leave.employeeId} · {leave.type} leave</strong><p>{leave.date} · {leave.reason}</p></div><div className="employee-request-actions"><button disabled={working === leave.id} className="primary-action" onClick={() => resolveLeave(leave, 'approved')}>Approve</button><button disabled={working === leave.id} className="range-select" onClick={() => resolveLeave(leave, 'rejected')}>Decline</button></div></div>)}{!leaves.length && !dataLoading && <p className="employee-empty">No pending leave requests.</p>}</section>
     </div>

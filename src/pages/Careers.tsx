@@ -20,7 +20,6 @@ export default function Careers() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.name.trim()) e.name = 'Name is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.position) e.position = 'Select a position';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -72,7 +71,6 @@ export default function Careers() {
           </div>
           <div>
             <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
-            {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
           </div>
           <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
           <div>

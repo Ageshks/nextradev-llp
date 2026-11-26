@@ -31,8 +31,10 @@ export const listAttendance = (date?: string, employeeId?: string) => {
   const params = new URLSearchParams(); if (date) params.set('date', date); if (employeeId) params.set('employeeId', employeeId);
   return request<WorkforceRow[]>(`/attendance${params.size ? `?${params}` : ''}`);
 };
-export const checkIn = (date: string, location: { latitude: number; longitude: number }) => request('/attendance/check-in', json('POST', { date, location }));
-export const checkOut = (date: string, location: { latitude: number; longitude: number }) => request<any>('/attendance/check-out', json('POST', { date, location }));
+export const checkIn = (date: string, location: { latitude: number; longitude: number }, accuracyMeters: number) => request('/attendance/check-in', json('POST', { date, location, accuracyMeters }));
+export const checkOut = (date: string, location: { latitude: number; longitude: number }, accuracyMeters: number, reason: string) => request<any>('/attendance/check-out', json('POST', { date, location, accuracyMeters, reason }));
+export const reviewCheckout = (id: string, status: 'approved' | 'rejected', remarks = '') => request(`/checkout-requests/${encodeURIComponent(id)}/review`, json('POST', { status, remarks }));
+export const submitAttendanceRegularisation = (requestData: Record<string, unknown>) => request('/regularisation', json('POST', requestData));
 export const listCheckoutRequests = () => request<WorkforceRow[]>('/checkout-requests');
 export const approveCheckout = (id: string) => request(`/checkout-requests/${encodeURIComponent(id)}/approve`, json('POST'));
 export const listTasks = () => request<WorkforceRow[]>('/tasks');

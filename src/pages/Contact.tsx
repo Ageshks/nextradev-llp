@@ -17,7 +17,6 @@ export default function Contact() {
   const validate = () => {
     const e: Record<string,string> = {};
     if (!form.name.trim()) e.name = 'Name is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required';
     if (!form.description.trim()) e.description = 'Project description required';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -49,7 +48,6 @@ export default function Contact() {
             </div>
             <div>
               <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email *" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
             <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone number" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
             <input value={form.company} onChange={e=>setForm({...form,company:e.target.value})} placeholder="Company name" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />

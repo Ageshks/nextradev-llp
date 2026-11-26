@@ -46,7 +46,7 @@ export default function EmployeeLogin() {
         </div>
         <label className="block text-sm font-medium text-slate-700">
           Work email
-          <input required type="email" autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500" />
+          <input required type="text" inputMode="email" autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500" />
         </label>
         <label className="block text-sm font-medium text-slate-700">
           Password

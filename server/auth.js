@@ -37,7 +37,8 @@ async function verifyFirebaseToken(token) {
 async function firebaseEmployeeRole(uid, token) {
   const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/employees/${encodeURIComponent(uid)}`;
   const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) return null;
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Unable to read Firebase employee profile (${response.status})`);
   const document = await response.json();
   const fields = document.fields || {};
   const value = field => field?.stringValue ?? field?.integerValue ?? field?.booleanValue ?? '';
@@ -54,8 +55,12 @@ export async function authMiddleware(req, res, next) {
     const claims = await verifyFirebaseToken(token);
     const firestoreProfile = await firebaseEmployeeRole(claims.sub, token);
     const stored = db.prepare('SELECT * FROM employee_profiles WHERE uid=?').get(claims.sub);
-    const profile = firestoreProfile?.role ? firestoreProfile : (stored ? { role: stored.role, name: stored.name, email: stored.email, department: stored.department, title: stored.title, employeeCode: stored.employee_code } : firestoreProfile);
-    const active = stored ? Boolean(stored.active) : profile?.active !== false && profile?.active !== 'false' && profile?.active !== 0 && profile?.active !== '0';
+    const storedProfile = stored ? { role: stored.role, name: stored.name, email: stored.email, department: stored.department, title: stored.title, employeeCode: stored.employee_code, active: Boolean(stored.active) } : null;
+    // Firebase employee documents are authoritative when present. SQLite remains a fallback
+    // for installations that have not provisioned the Firebase employee profile yet.
+    const profile = firestoreProfile || storedProfile || {};
+    const activeValue = Object.hasOwn(profile, 'active') ? profile.active : storedProfile?.active;
+    const active = activeValue === undefined || activeValue === null || (activeValue !== false && activeValue !== 'false' && activeValue !== 0 && activeValue !== '0');
     req.user = { uid: claims.sub, email: claims.email || '', role: String(profile?.role || '').toLowerCase(), name: String(profile?.name || claims.name || ''), active, profile: profile || {} };
     next();
   } catch {
