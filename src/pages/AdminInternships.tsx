@@ -1,25 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { getApplications, getApplication, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, resetOpenings, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
-import { addCareerVacancy, deleteCareerVacancy, getCareerVacancies, updateCareerVacancy } from '../utils/api';
+import { getApplications, getApplication, updateStatus, deleteApplication, getOpenings, addOpening, updateOpening, deleteOpening, getLeadership, addLeader, updateLeader, deleteLeader, getProjects, addProject, updateProject, deleteProject } from '../utils/applicationStorage';
+import { addCareerVacancy, deleteCareerVacancy, getCareerApplications, getCareerVacancies, updateCareerVacancy } from '../utils/api';
 import { resolveMediaUrl } from '../utils/api';
 import { reorderLeadership, reorderProjects } from '../utils/api';
-import { internships, internshipStatuses } from '../data/internships';
+import { internshipStatuses } from '../data/internships';
 import useSEO from '../hooks/useSEO';
+import { useAuthListener } from '../context/AuthContext';
 
 export default function AdminInternships() {
   useSEO({ title: 'Admin | Internships', noindex: true });
-  const navigate = useNavigate();
+  const { signOut } = useAuthListener();
   const [searchParams] = useSearchParams();
-  const [authed, setAuthed] = useState(false);
   const [apps, setApps] = useState<any[]>([]);
+  const [careerApps, setCareerApps] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
   const [openings, setOpenings] = useState<any[]>([]);
   const initialTab = searchParams.get('tab');
-  const [tab, setTab] = useState<'apps' | 'openings' | 'projects' | 'leaders' | 'vacancies'>(initialTab === 'projects' || initialTab === 'vacancies' || initialTab === 'openings' ? initialTab : 'apps');
+  const [tab, setTab] = useState<'apps' | 'career-apps' | 'openings' | 'projects' | 'leaders' | 'vacancies'>(initialTab === 'projects' || initialTab === 'vacancies' || initialTab === 'openings' || initialTab === 'career-apps' ? initialTab : 'apps');
   const [leaders, setLeaders] = useState<any[]>([]);
   const [projectList, setProjectList] = useState<any[]>([]);
   const [editingOpening, setEditingOpening] = useState<any | null>(null);
@@ -30,31 +31,28 @@ export default function AdminInternships() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [projectImage, setProjectImage] = useState<File | null>(null);
   const [notice, setNotice] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    if (!sessionStorage.getItem('nextradev_admin_token')) {
-      navigate('/admin/login'); return;
-    }
-    setAuthed(true);
     void refresh();
   }, []);
 
   const refresh = async () => {
     try {
-      const [a, o, l, p, v] = await Promise.all([getApplications(), getOpenings(), getLeadership(), getProjects(), getCareerVacancies(true)]);
+      const [a, o, l, p, v, ca] = await Promise.all([getApplications(), getOpenings(), getLeadership(), getProjects(), getCareerVacancies(true), getCareerApplications()]);
       setApps(Array.isArray(a) ? a : []);
-      setOpenings(Array.isArray(o) ? o : internships);
+      setOpenings(Array.isArray(o) ? o : []);
       setLeaders(Array.isArray(l) ? l : []);
       setProjectList(Array.isArray(p) ? p : []);
       setVacancies(Array.isArray(v) ? v : []);
-    } catch {
-      // ignore
+      setCareerApps(Array.isArray(ca) ? ca : []);
+      setLoadError('');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Admin content could not be loaded.');
     }
   };
 
-  const logout = () => { sessionStorage.removeItem('nextradev_admin_token'); navigate('/'); };
-
-  if (!authed) return null;
+  const logout = async () => { await signOut(); };
 
   const filtered = filter === 'All' ? apps : apps.filter(a => a.position === filter);
   const positions = Array.from(new Set(apps.map(a => a.position)));
@@ -84,7 +82,7 @@ export default function AdminInternships() {
     }
   };
 
-  const blankOpening = () => ({ title: '', department: '', duration: '3-6 months', compensation: '', mode: 'Remote / Hybrid', skills: [], deadline: 'Rolling' });
+  const blankOpening = () => ({ title: '', department: '', duration: '', compensation: '', mode: '', skills: [], deadline: '' });
   const saveOpeningForm = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -164,9 +162,10 @@ export default function AdminInternships() {
         </div>
       </div>
       <div className="mb-6 flex flex-wrap gap-2">
-        {([['apps','Applications'],['openings','Opportunities'],['vacancies','Career vacancies'],['projects','Projects'],['leaders','Founders']] as const).map(([key,label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-4 py-2 text-sm ${tab===key?'bg-blue-600 text-white':'bg-white/10 text-muted'}`}>{label}</button>)}
+        {([['apps','Internship applications'],['career-apps','Career applications'],['openings','Opportunities'],['vacancies','Career vacancies'],['projects','Projects'],['leaders','Founders']] as const).map(([key,label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-4 py-2 text-sm ${tab===key?'bg-blue-600 text-white':'bg-white/10 text-muted'}`}>{label}</button>)}
       </div>
       {notice && <p role="status" className="mb-4 text-sm text-cyan-300">{notice}</p>}
+      {loadError && <p role="alert" className="mb-4 rounded-lg border border-amber-300/30 bg-amber-500/10 p-3 text-sm text-amber-200">{loadError}</p>}
       {tab === 'apps' && <><div className="mb-4 flex flex-wrap gap-2">
         <button onClick={() => setFilter('All')} className={`px-3 py-1 rounded-full text-sm ${filter==='All'?'bg-blue-600 text-white':'bg-white/10 text-muted'}`}>All</button>
         {positions.map(p => (
@@ -205,17 +204,18 @@ export default function AdminInternships() {
         {filtered.length === 0 && <p className="text-muted mt-4">No applications.</p>}
       </div></>}
 
+      {tab === 'career-apps' && <section className="overflow-x-auto"><h3 className="mb-4 text-lg font-semibold text-white">Career applications</h3><table className="w-full text-left text-sm"><thead className="border-b border-white/10 text-muted"><tr><th className="py-2">Applicant</th><th>Email</th><th>Phone</th><th>Position</th><th>Submitted</th><th>Message</th></tr></thead><tbody>{careerApps.map(application=><tr key={application.id} className="border-b border-white/5"><td className="py-3 text-white">{application.name}</td><td className="text-muted">{application.email}</td><td className="text-muted">{application.phone||'—'}</td><td className="text-muted">{application.position}</td><td className="text-muted">{new Date(application.submittedAt).toLocaleDateString()}</td><td className="max-w-sm text-muted">{application.message||'—'}</td></tr>)}</tbody></table>{!careerApps.length&&<p className="mt-4 text-sm text-muted">No career applications have been received.</p>}</section>}
+
       {tab === 'openings' && <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white font-semibold text-lg">Manage Openings</h3>
           <div className="flex gap-2">
             <Button onClick={() => setEditingOpening(blankOpening())}>Add Opening</Button>
-            <Button variant="ghost" onClick={async () => { await resetOpenings(); await refresh(); }}>Reset to Defaults</Button>
           </div>
         </div>
         {editingOpening && <form onSubmit={saveOpeningForm} className="mb-5 grid gap-3 rounded-xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
           <h4 className="text-white font-semibold sm:col-span-2">{editingOpening.id ? 'Edit opening' : 'Add opening'}</h4>
-          {(['title','department','duration','compensation','mode','deadline'] as const).map(key => <label key={key} className="text-sm text-muted capitalize">{key}<input required={key==='title'} name={key} defaultValue={editingOpening[key] || ''} className={inputClass} /></label>)}
+          {(['title','department','duration','compensation','mode','deadline'] as const).map(key => <label key={key} className="text-sm text-muted capitalize">{key}<input required={['title','department','duration','mode','deadline'].includes(key)} name={key} defaultValue={editingOpening[key] || ''} className={inputClass} /></label>)}
           <label className="text-sm text-muted sm:col-span-2">Skills (comma separated)<input name="skills" defaultValue={(editingOpening.skills || []).join(', ')} className={inputClass} /></label>
           <div className="flex gap-2 sm:col-span-2"><Button type="submit">Save opening</Button><Button type="button" variant="ghost" onClick={() => setEditingOpening(null)}>Cancel</Button></div>
         </form>}
@@ -233,7 +233,7 @@ export default function AdminInternships() {
       </div>}
 
       {tab === 'vacancies' && <section>
-        <div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-semibold text-white">Career vacancies</h3><p className="text-sm text-muted">Publish and update the roles shown on the public Careers page.</p></div><Button onClick={() => setVacancyForm({ title:'', type:'Full-time', location:'India (Remote/Hybrid)', description:'', isOpen:true })}>Add Vacancy</Button></div>
+        <div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-semibold text-white">Career vacancies</h3><p className="text-sm text-muted">Publish and update the roles shown on the public Careers page.</p></div><Button onClick={() => setVacancyForm({ title:'', type:'', location:'', description:'', isOpen:true })}>Add Vacancy</Button></div>
         {vacancyForm && <form onSubmit={saveVacancy} className="mb-6 grid gap-3 rounded-xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
           <h4 className="text-white font-semibold sm:col-span-2">{vacancyForm.id ? 'Edit vacancy' : 'Add vacancy'}</h4>
           <label className="text-sm text-muted">Role title<input required name="title" defaultValue={vacancyForm.title} className={inputClass}/></label>

@@ -42,6 +42,7 @@ export default function Projects() {
           ))}
         </AnimatePresence>
       </motion.div>
+      {!projects.length&&<p className="mt-6 text-center text-muted">No projects have been published yet.</p>}
 
       <AnimatePresence>
         {selected && (

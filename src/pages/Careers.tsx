@@ -3,9 +3,7 @@ import SectionHeading from '../components/ui/SectionHeading';
 import useSEO from '../hooks/useSEO';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { jobs } from '../data/careers';
-import { getCareerVacancies } from '../utils/api';
-const API_URL = import.meta.env.VITE_CAREERS_API_URL as string | undefined;
+import { getCareerVacancies, submitCareerApplication } from '../utils/api';
 
 export default function Careers() {
   useSEO({ title: 'Careers | Nextradev Technologies LLP', description: 'Join Nextradev Technologies LLP. Explore open positions and apply to build your career in technology.', path: '/careers', keywords: ['careers', 'software jobs', 'technology jobs'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Careers', item: 'https://nextradev.com/careers' }] } });
@@ -13,10 +11,10 @@ export default function Careers() {
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');
   const [message, setMessage] = useState('');
-  const [vacancies, setVacancies] = useState(jobs);
+  const [vacancies, setVacancies] = useState<any[]>([]);
 
   useEffect(() => {
-    getCareerVacancies().then(rows => setVacancies(rows)).catch(() => setVacancies(jobs));
+    getCareerVacancies().then(rows => setVacancies(rows)).catch(() => setVacancies([]));
   }, []);
 
   const validate = () => {
@@ -31,11 +29,9 @@ export default function Careers() {
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!validate()) return;
-    if (!API_URL) { setStatus('error'); setMessage('Application endpoint not configured. Set VITE_CAREERS_API_URL.'); return; }
     setStatus('loading');
     try {
-      const res = await fetch(API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error('Request failed');
+      await submitCareerApplication(form);
       setStatus('success'); setMessage('Application submitted successfully.');
       setForm({ name:'', email:'', phone:'', position:'', message:'' });
     } catch { setStatus('error'); setMessage('Submission failed. Please try again.'); }
@@ -65,6 +61,7 @@ export default function Careers() {
           </Card>
         ))}
       </div>
+      {!vacancies.length&&<p className="mb-12 text-center text-muted">There are no open positions right now. Please check back later.</p>}
 
       <SectionHeading title="Application Form" />
       <Card className="max-w-2xl mx-auto">

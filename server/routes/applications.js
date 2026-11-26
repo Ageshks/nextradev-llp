@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import db from '../db.js';
-import { authMiddleware } from '../auth.js';
+import { adminMiddleware } from '../auth.js';
 
 const router = Router();
 const STATUSES = ['Pending', 'Under Review', 'Shortlisted', 'Rejected', 'Accepted'];
@@ -72,7 +72,7 @@ router.post('/', (req, res) => {
 });
 
 // Admin: list applications
-router.get('/', authMiddleware, (req, res) => {
+router.get('/', adminMiddleware, (req, res) => {
   const position = String(req.query.position || 'All');
   let rows;
   if (position && position !== 'All') {
@@ -99,7 +99,7 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 // Admin: get one application with resume
-router.get('/:id', authMiddleware, (req, res) => {
+router.get('/:id', adminMiddleware, (req, res) => {
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({
@@ -121,7 +121,7 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 // Admin: update status
-router.patch('/:id/status', authMiddleware, (req, res) => {
+router.patch('/:id/status', adminMiddleware, (req, res) => {
   const status = String(req.body?.status || '');
   if (!STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
@@ -132,7 +132,7 @@ router.patch('/:id/status', authMiddleware, (req, res) => {
 });
 
 // Admin: delete
-router.delete('/:id', authMiddleware, (req, res) => {
+router.delete('/:id', adminMiddleware, (req, res) => {
   const info = db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.json({ message: 'Deleted' });

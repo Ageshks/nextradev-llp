@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import bcrypt from 'bcryptjs';
 
 const dataDir = path.join(process.cwd(), 'server', 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -9,15 +8,10 @@ const dbPath = path.join(dataDir, 'nextradev.db');
 const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
+// The legacy username/password login was replaced by Firebase Authentication.
+db.exec('DROP TABLE IF EXISTS users');
 
 db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'admin',
-  created_at TEXT NOT NULL
-);
 CREATE TABLE IF NOT EXISTS career_vacancies (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -26,6 +20,10 @@ CREATE TABLE IF NOT EXISTS career_vacancies (
   description TEXT NOT NULL DEFAULT '',
   is_open INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS career_applications (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
+  position TEXT NOT NULL, message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Pending', submitted_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS applications (
   id TEXT PRIMARY KEY,
@@ -75,6 +73,42 @@ CREATE TABLE IF NOT EXISTS leadership (
   created_at TEXT NOT NULL,
   display_order INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS employee_profiles (
+  uid TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'employee',
+  department TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', employee_code TEXT NOT NULL DEFAULT '',
+  active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS attendance (
+  id TEXT PRIMARY KEY, employee_id TEXT NOT NULL, date TEXT NOT NULL, check_in TEXT, check_out TEXT,
+  check_in_lat REAL, check_in_lng REAL, check_out_lat REAL, check_out_lng REAL,
+  status TEXT NOT NULL DEFAULT 'present', updated_at TEXT NOT NULL, UNIQUE(employee_id,date)
+);
+CREATE TABLE IF NOT EXISTS workforce_tasks (
+  id TEXT PRIMARY KEY, employee_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+  due_date TEXT NOT NULL DEFAULT '', assigned_by TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
+  started_at TEXT, completed_at TEXT, report TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id TEXT PRIMARY KEY, employee_id TEXT NOT NULL, type TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL,
+  reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', reviewed_by TEXT NOT NULL DEFAULT '',
+  reviewed_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, date TEXT NOT NULL, type TEXT NOT NULL,
+  created_by TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workplace_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1), latitude REAL NOT NULL, longitude REAL NOT NULL,
+  radius_meters INTEGER NOT NULL, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS checkout_requests (
+  id TEXT PRIMARY KEY, employee_id TEXT NOT NULL, attendance_id TEXT NOT NULL,
+  distance_meters INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, resolved_at TEXT NOT NULL DEFAULT '', resolved_by TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS workforce_migrations (
+  name TEXT PRIMARY KEY, completed_at TEXT NOT NULL
+);
 `);
 
 // Migration: add course_fee column to existing databases
@@ -96,118 +130,10 @@ for (const table of ['projects', 'leadership']) {
   }
 }
 
-export const defaultOpenings = [
-  { id: 'flutter-intern', title: 'Flutter Development Intern', department: 'Mobile Engineering', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['Dart','Flutter','Git'], deadline: 'Rolling' },
-  { id: 'react-intern', title: 'React.js Development Intern', department: 'Web Engineering', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['React','TypeScript','Tailwind CSS'], deadline: 'Rolling' },
-  { id: 'backend-intern', title: 'Backend Development Intern', department: 'Backend Engineering', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['Node.js','Databases','REST APIs'], deadline: 'Rolling' },
-  { id: 'uiux-intern', title: 'UI/UX Design Intern', department: 'Design', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['Figma','Prototyping','User Research'], deadline: 'Rolling' },
-  { id: 'marketing-intern', title: 'Digital Marketing Intern', department: 'Marketing', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['SEO','Social Media','Content'], deadline: 'Rolling' },
-  { id: 'python-intern', title: 'Python Development Intern', department: 'Software Engineering', duration: '3-6 months', compensation: 'To be confirmed', course_fee: 'To be confirmed', mode: 'Remote / Hybrid', skills: ['Python','APIs','Automation'], deadline: 'Rolling' },
-];
-
-export const defaultProjects = [
-  { id: 'spectra-crm', title: 'Spectra CRM', description: 'Business and service management platform.', category: 'Business Software', tags: ['React','Node.js','PostgreSQL'], image: '/images/projects/spectra.jpg' },
-  { id: 'explorist', title: 'Explorist', description: 'Travel and exploration application.', category: 'Mobile Applications', tags: ['Flutter','Firebase'], image: '/images/projects/explorist.jpg' },
-  { id: 'bus-buddy', title: 'Bus Buddy', description: 'Bus management and tracking application.', category: 'Mobile Applications', tags: ['React Native','Maps API'], image: '/images/projects/bus-buddy.jpg' },
-  { id: 'aiscatty', title: 'AisCatty', description: 'Pet adoption application.', category: 'Mobile Applications', tags: ['Flutter','Cloud'], image: '/images/projects/aiscatty.jpg' },
-  { id: 'jetskie', title: 'Jetskie', description: 'Interactive Flutter game.', category: 'Creative Projects', tags: ['Flutter','Game'], image: '/images/projects/jetskie.jpg' },
-];
-
-export const defaultLeadership = [
-  { id: 'founder-1', name: 'Founder Name', designation: 'Founder & CEO', bio: 'Short professional introduction.', image: '/images/founders/founder.png', linkedin: 'https://linkedin.com/in/profile', twitter: '' },
-  { id: 'founder-2', name: 'Founder Name', designation: 'Co-Founder', bio: 'Short professional introduction.', image: '/images/founders/founder.png', linkedin: 'https://linkedin.com/in/profile', twitter: '' },
-];
-
-export function seedAdmin() {
-  const username = process.env.ADMIN_USERNAME || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'nextradev-admin';
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-  if (!existing) {
-    const hash = bcrypt.hashSync(password, 12);
-    db.prepare('INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)')
-      .run(username, hash, 'admin', new Date().toISOString());
-    // eslint-disable-next-line no-console
-    console.log(`Seeded admin user "${username}"`);
-  }
-}
-
-export function seedOpenings() {
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM openings').get();
-  if (c === 0) {
-    const stmt = db.prepare('INSERT INTO openings (id, title, department, duration, compensation, course_fee, mode, skills, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const o of defaultOpenings) {
-      stmt.run(o.id, o.title, o.department, o.duration, o.compensation, o.course_fee, o.mode, JSON.stringify(o.skills), o.deadline);
-    }
-  }
-}
-
-export function seedProjects() {
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM projects').get();
-  if (c === 0) {
-    const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    const now = new Date().toISOString();
-    for (const p of defaultProjects) {
-      stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now, defaultProjects.indexOf(p));
-    }
-  }
-}
-
-export function seedLeadership() {
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM leadership').get();
-  if (c === 0) {
-    const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    const now = new Date().toISOString();
-    for (const l of defaultLeadership) {
-      stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now, defaultLeadership.indexOf(l));
-    }
-  }
-}
-
-export function seedCareerVacancies() {
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM career_vacancies').get();
-  if (c !== 0) return;
-  const rows = [
-    ['flutter-dev', 'Flutter Developer', 'Full-time', 'India (Remote/Hybrid)', 'Build cross-platform mobile applications with Flutter.'],
-    ['react-dev', 'React Developer', 'Full-time', 'India (Remote/Hybrid)', 'Develop modern web applications using React and TypeScript.'],
-    ['backend-dev', 'Backend Developer', 'Full-time', 'India (Remote/Hybrid)', 'Design and build scalable backend services and APIs.'],
-    ['uiux-designer', 'UI/UX Designer', 'Full-time', 'India (Remote/Hybrid)', 'Create intuitive and beautiful digital experiences.'],
-    ['digital-marketing-intern', 'Digital Marketing Intern', 'Internship', 'India (Remote/Hybrid)', 'Support digital marketing campaigns and content.'],
-  ];
-  const insert = db.prepare('INSERT INTO career_vacancies (id,title,employment_type,location,description,is_open,created_at) VALUES (?,?,?,?,?,1,?)');
-  const now = new Date().toISOString();
-  for (const row of rows) insert.run(...row, now);
-}
-
-export function resetOpeningsToDefaults() {
-  db.exec('DELETE FROM openings');
-  const stmt = db.prepare('INSERT INTO openings (id, title, department, duration, compensation, course_fee, mode, skills, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  for (const o of defaultOpenings) {
-    stmt.run(o.id, o.title, o.department, o.duration, o.compensation, o.course_fee, o.mode, JSON.stringify(o.skills), o.deadline);
-  }
-}
-
-export function resetProjectsToDefaults() {
-  db.exec('DELETE FROM projects');
-  const stmt = db.prepare('INSERT INTO projects (id, title, description, category, tags, image, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-  const now = new Date().toISOString();
-  for (const p of defaultProjects) {
-    stmt.run(p.id, p.title, p.description, p.category, JSON.stringify(p.tags), p.image, now, defaultProjects.indexOf(p));
-  }
-}
-
-export function resetLeadershipToDefaults() {
-  db.exec('DELETE FROM leadership');
-  const stmt = db.prepare('INSERT INTO leadership (id, name, designation, bio, image, linkedin, twitter, created_at, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  const now = new Date().toISOString();
-  for (const l of defaultLeadership) {
-    stmt.run(l.id, l.name, l.designation, l.bio, l.image, l.linkedin, l.twitter, now, defaultLeadership.indexOf(l));
-  }
-}
-
-seedAdmin();
-seedOpenings();
-seedProjects();
-seedLeadership();
-seedCareerVacancies();
+// Remove legacy sample records created by earlier builds. Real content is entered in the admin CMS.
+db.prepare("DELETE FROM openings WHERE id IN ('flutter-intern','react-intern','backend-intern','uiux-intern','marketing-intern','python-intern')").run();
+db.prepare("DELETE FROM projects WHERE id IN ('spectra-crm','explorist','bus-buddy','aiscatty','jetskie')").run();
+db.prepare("DELETE FROM leadership WHERE id IN ('founder-1','founder-2')").run();
+db.prepare("DELETE FROM career_vacancies WHERE id IN ('flutter-dev','react-dev','backend-dev','uiux-designer','digital-marketing-intern')").run();
 
 export default db;

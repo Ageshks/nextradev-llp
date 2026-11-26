@@ -1,3 +1,7 @@
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
 export interface InternshipApplication {
   id: string;
   fullName: string;
@@ -55,6 +59,10 @@ export interface CareerVacancy {
   isOpen: boolean;
 }
 
+export interface CareerApplication {
+  id: string; name: string; email: string; phone: string; position: string; message: string; status: string; submittedAt: string;
+}
+
 // Accept either an origin (https://api.example.com) or an API root
 // (https://api.example.com/api); request paths below already include /api.
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '').replace(/\/api$/, '');
@@ -70,7 +78,7 @@ export function resolveMediaUrl(url: string) {
 }
 
 async function request(path: string, init?: RequestInit) {
-  const token = sessionStorage.getItem('nextradev_admin_token');
+  const token = await auth.currentUser?.getIdToken();
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -94,7 +102,7 @@ async function request(path: string, init?: RequestInit) {
 }
 
 async function requestUpload(path: string, formData: FormData) {
-  const token = sessionStorage.getItem('nextradev_admin_token');
+  const token = await auth.currentUser?.getIdToken();
   const headers = new Headers();
   if (token) headers.set('Authorization', `Bearer ${token}`);
   // Do NOT set Content-Type; browser sets multipart boundary
@@ -111,7 +119,7 @@ async function requestUpload(path: string, formData: FormData) {
 }
 
 async function requestUploadPut(path: string, formData: FormData) {
-  const token = sessionStorage.getItem('nextradev_admin_token');
+  const token = await auth.currentUser?.getIdToken();
   const headers = new Headers();
   if (token) headers.set('Authorization', `Bearer ${token}`);
   const res = await fetch(`${API_BASE}${path}`, { method: 'PUT', body: formData, headers });
@@ -127,20 +135,14 @@ async function requestUploadPut(path: string, formData: FormData) {
 }
 
 export async function adminLogin(username: string, password: string) {
-  const data: any = await request('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password }),
-  });
-  sessionStorage.setItem('nextradev_admin_token', data.token);
-  return data.user as { username: string; role: string };
-}
-
-export function adminLogout() {
-  sessionStorage.removeItem('nextradev_admin_token');
-}
-
-export function isAdminAuthed() {
-  return !!sessionStorage.getItem('nextradev_admin_token');
+  const credential = await signInWithEmailAndPassword(auth, username, password);
+  const profile = await getDoc(doc(db, 'employees', credential.user.uid));
+  const role = String(profile.data()?.role || '').toLowerCase();
+  if (!profile.exists() || !['admin','super_admin','super admin','hr','hr_manager'].includes(role)) {
+    await signOut(auth);
+    throw new Error('This Firebase account does not have an administrator role.');
+  }
+  return { username: credential.user.email || username, role };
 }
 
 export async function getApplications(position = 'All') {
@@ -192,12 +194,16 @@ export async function deleteOpening(id: string) {
   await request(`/api/openings/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-export async function resetOpenings() {
-  await request('/api/openings/reset', { method: 'POST' });
-}
-
 export async function getCareerVacancies(admin = false) {
   return (await request(admin ? '/api/careers/admin' : '/api/careers')) as CareerVacancy[];
+}
+
+export async function getCareerApplications() {
+  return (await request('/api/careers/applications')) as CareerApplication[];
+}
+
+export async function submitCareerApplication(application: { name: string; email: string; phone: string; position: string; message: string }) {
+  return request('/api/careers/apply', { method: 'POST', body: JSON.stringify(application) });
 }
 
 export async function addCareerVacancy(vacancy: Partial<CareerVacancy> & { title: string }) {
@@ -210,15 +216,6 @@ export async function updateCareerVacancy(id: string, vacancy: Partial<CareerVac
 
 export async function deleteCareerVacancy(id: string) {
   await request(`/api/careers/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
-
-export async function verifyAdminToken() {
-  try {
-    await request('/api/admin/verify');
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Projects API
@@ -246,10 +243,6 @@ export async function deleteProject(id: string) {
   await request(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-export async function resetProjects() {
-  await request('/api/projects/reset', { method: 'POST' });
-}
-
 // Leadership API
 export async function getLeadership() {
   return (await request('/api/leadership')) as Leader[];
@@ -269,8 +262,4 @@ export async function updateLeader(id: string, formData: FormData) {
 
 export async function deleteLeader(id: string) {
   await request(`/api/leadership/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
-
-export async function resetLeadership() {
-  await request('/api/leadership/reset', { method: 'POST' });
 }

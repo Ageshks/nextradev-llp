@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import db from '../db.js';
-import { authMiddleware } from '../auth.js';
+import { adminMiddleware } from '../auth.js';
 
 const router = Router();
 const clean = (value, max = 1000) => String(value ?? '').trim().slice(0, max);
@@ -19,12 +19,28 @@ router.get('/', (_req, res) => {
   res.json(rows.map(toVacancy));
 });
 
-router.get('/admin', authMiddleware, (_req, res) => {
+router.get('/admin', adminMiddleware, (_req, res) => {
   const rows = db.prepare('SELECT * FROM career_vacancies ORDER BY created_at DESC').all();
   res.json(rows.map(toVacancy));
 });
 
-router.post('/', authMiddleware, (req, res) => {
+router.get('/applications', adminMiddleware, (_req, res) => {
+  const rows = db.prepare('SELECT id,name,email,phone,position,message,status,submitted_at AS submittedAt FROM career_applications ORDER BY submitted_at DESC').all();
+  res.json(rows);
+});
+
+router.post('/apply', (req, res) => {
+  const name = clean(req.body?.name, 120), email = clean(req.body?.email, 160).toLowerCase();
+  const phone = clean(req.body?.phone, 60), position = clean(req.body?.position, 160), message = clean(req.body?.message, 4000);
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !position) return res.status(400).json({ error: 'Name, valid email, and a selected position are required.' });
+  const vacancy = db.prepare('SELECT id FROM career_vacancies WHERE title=? AND is_open=1').get(position);
+  if (!vacancy) return res.status(400).json({ error: 'That position is no longer open.' });
+  const id = randomUUID(), submittedAt = new Date().toISOString();
+  db.prepare('INSERT INTO career_applications(id,name,email,phone,position,message,submitted_at) VALUES(?,?,?,?,?,?,?)').run(id,name,email,phone,position,message,submittedAt);
+  res.status(201).json({ id, submittedAt, message: 'Application submitted.' });
+});
+
+router.post('/', adminMiddleware, (req, res) => {
   const title = clean(req.body?.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
   const vacancy = {
@@ -39,7 +55,7 @@ router.post('/', authMiddleware, (req, res) => {
   res.status(201).json(vacancy);
 });
 
-router.put('/:id', authMiddleware, (req, res) => {
+router.put('/:id', adminMiddleware, (req, res) => {
   const title = clean(req.body?.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
   const vacancy = {
@@ -55,7 +71,7 @@ router.put('/:id', authMiddleware, (req, res) => {
   res.json(vacancy);
 });
 
-router.delete('/:id', authMiddleware, (req, res) => {
+router.delete('/:id', adminMiddleware, (req, res) => {
   const result = db.prepare('DELETE FROM career_vacancies WHERE id=?').run(req.params.id);
   if (!result.changes) return res.status(404).json({ error: 'Vacancy not found' });
   res.json({ message: 'Vacancy removed' });

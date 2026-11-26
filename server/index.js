@@ -7,13 +7,13 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import db from './db.js';
-import authRoutes from './routes/auth.js';
 import applicationRoutes from './routes/applications.js';
 import openingRoutes from './routes/openings.js';
 import projectRoutes from './routes/projects.js';
 import leadershipRoutes from './routes/leadership.js';
 import careerRoutes from './routes/careers.js';
-import { authMiddleware } from './auth.js';
+import workforceRoutes from './routes/workforce.js';
+import { adminMiddleware } from './auth.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
@@ -65,15 +65,15 @@ app.use('/api', globalLimiter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'nextradev-api' }));
 
-app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/openings', openingRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/leadership', leadershipRoutes);
 app.use('/api/careers', careerRoutes);
+app.use('/api/workforce', workforceRoutes);
 
 // Admin-only helper: list users (not needed). Keep /api/admin/verify
-app.get('/api/admin/verify', authMiddleware, (req, res) => res.json({ ok: true, user: req.user }));
+app.get('/api/admin/verify', adminMiddleware, (req, res) => res.json({ ok: true, user: req.user }));
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((err, _req, res, _next) => {

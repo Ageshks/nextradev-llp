@@ -1,11 +1,9 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { doc, getDoc } from 'firebase/firestore';
 import MainLayout from './layouts/MainLayout';
 import { useAuthListener } from './context/AuthContext';
-import { db } from './lib/firebase';
-import { verifyAdminToken } from './utils/api';
+import { getEmployeeProfile, migrateLegacyWorkforceOnce } from './utils/workforceApi';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -37,9 +35,9 @@ function EmployeeGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!user) { setAuthorized(false); return; }
-    getDoc(doc(db, 'employees', user.uid)).then(snapshot => {
-      const role = String(snapshot.data()?.role || 'employee').toLowerCase();
-      setAuthorized(snapshot.exists() && ['employee','developer','project_manager','sales_executive','finance_manager'].includes(role));
+    getEmployeeProfile().then(profile => {
+      const role = String(profile.role || '').toLowerCase();
+      setAuthorized(profile.active !== false && ['employee','developer','project_manager','sales_executive','finance_manager'].includes(role));
     }).catch(() => setAuthorized(false));
   }, [loading, user]);
   if (loading || authorized === null) return <Fallback />;
@@ -52,17 +50,13 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     if (loading) return;
-    verifyAdminToken().then(async validToken => {
+    if (!user) { setAuthorized(false); return; }
+    getEmployeeProfile().then(async profile => {
       if (!active) return;
-      if (validToken) { setAuthorized(true); return; }
-      if (!user) { setAuthorized(false); return; }
-      try {
-        const profile = await getDoc(doc(db, 'employees', user.uid));
-        const role = String(profile.data()?.role || '').toLowerCase();
-        setAuthorized(profile.exists() && ['admin','super_admin','super admin','hr','hr_manager'].includes(role));
-      } catch {
-        setAuthorized(false);
-      }
+      const role = String(profile.role || '').toLowerCase();
+      const isAdmin = profile.active !== false && ['admin','super_admin','super admin','hr','hr_manager'].includes(role);
+      if (isAdmin) await migrateLegacyWorkforceOnce().catch(() => undefined);
+      if (active) setAuthorized(isAdmin);
     }).catch(() => { if (active) setAuthorized(false); });
     return () => { active = false; };
   }, [loading, user]);

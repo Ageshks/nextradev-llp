@@ -10,17 +10,14 @@ import {
   addOpening as apiAddOpening,
   deleteOpening as apiDeleteOpening,
   updateOpening as apiUpdateOpening,
-  resetOpenings as apiResetOpenings,
   getProjects as apiGetProjects,
   addProject as apiAddProject,
   updateProject as apiUpdateProject,
   deleteProject as apiDeleteProject,
-  resetProjects as apiResetProjects,
   getLeadership as apiGetLeadership,
   addLeader as apiAddLeader,
   updateLeader as apiUpdateLeader,
   deleteLeader as apiDeleteLeader,
-  resetLeadership as apiResetLeadership,
 } from './api';
 
 export async function getApplications(position = 'All') {
@@ -49,17 +46,6 @@ export async function deleteApplication(id: string) {
 
 export async function getOpenings() {
   return apiGetOpenings();
-}
-
-export async function saveOpenings(list: any[]) {
-  await apiResetOpenings();
-  for (const o of list) {
-    await apiAddOpening(o);
-  }
-}
-
-export async function resetOpenings() {
-  await apiResetOpenings();
 }
 
 export async function addOpening(opening: any) {
@@ -91,10 +77,6 @@ export async function deleteProject(id: string) {
   await apiDeleteProject(id);
 }
 
-export async function resetProjects() {
-  await apiResetProjects();
-}
-
 // Leadership
 export async function getLeadership() {
   return apiGetLeadership();
@@ -111,8 +93,3 @@ export async function updateLeader(id: string, formData: FormData) {
 export async function deleteLeader(id: string) {
   await apiDeleteLeader(id);
 }
-
-export async function resetLeadership() {
-  await apiResetLeadership();
-}
-

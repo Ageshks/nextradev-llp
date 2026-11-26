@@ -8,7 +8,7 @@ import useSEO from '../hooks/useSEO';
 
 export default function AdminLogin() {
   useSEO({ title: 'Admin Login | Nextradev', noindex: true });
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,7 @@ export default function AdminLogin() {
       <SectionHeading title="Admin Login" />
       <Card>
         <form onSubmit={submit} className="space-y-4">
-          <input type="text" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Username" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
+          <input required type="email" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Company email" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-muted focus:outline-none focus:border-cyan-400" />
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <Button type="submit" className={loading?'opacity-60 pointer-events-none':''}>Login</Button>

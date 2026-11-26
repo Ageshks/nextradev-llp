@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore';
 import { AlertTriangle, Check, Clock3, MapPin, Users } from 'lucide-react';
-import { db } from '../../lib/firebase';
+import { approveCheckout as apiApproveCheckout, listAttendance, listCheckoutRequests, listEmployees, listLeaves, publishCalendarEvent as apiPublishCalendarEvent, reviewLeave as apiReviewLeave, saveEmployee as apiSaveEmployee, saveWorkplace as apiSaveWorkplace, getWorkplace, subscribeWorkforce } from '../../utils/workforceApi';
 import './AdminWorkspace.css';
 
 type Item = { id: string; [key: string]: any };
@@ -30,41 +29,23 @@ export default function AdminEmployees() {
 
   useEffect(() => {
     let active = true;
-    const onReadError = () => {
+    const refresh = async () => {
+      const results = await Promise.allSettled([listEmployees(), listAttendance(attendanceDate), listCheckoutRequests(), listLeaves(), getWorkplace()]);
       if (!active) return;
-      setDataLoading(false);
-      setDataError('Employee data could not be read. Check Firestore access rules for this admin account.');
+      const errors: string[] = [];
+      if (results[0].status === 'fulfilled') setEmployees(results[0].value); else errors.push(results[0].reason?.message || 'Employee list unavailable.');
+      if (results[1].status === 'fulfilled') setAttendance(results[1].value); else errors.push(results[1].reason?.message || 'Attendance unavailable.');
+      if (results[2].status === 'fulfilled') setRequests(results[2].value.filter(item => item.status === 'pending')); else errors.push(results[2].reason?.message || 'Checkout requests unavailable.');
+      if (results[3].status === 'fulfilled') setLeaves(results[3].value.filter(item => item.status === 'pending')); else errors.push(results[3].reason?.message || 'Leave requests unavailable.');
+      if (results[4].status === 'fulfilled' && results[4].value) {
+        setLatitude(String(results[4].value.latitude)); setLongitude(String(results[4].value.longitude)); setRadius(String(results[4].value.radiusMeters));
+      }
+      setDataError(errors.join(' ')); setDataLoading(false);
     };
-    const unsubs = [
-      onSnapshot(collection(db, 'employees'), snapshot => {
-        setEmployees(snapshot.docs.map(item => ({ id: item.id, ...item.data() })));
-        setDataLoading(false);
-      }, onReadError),
-      onSnapshot(collection(db, 'attendance'), snapshot => {
-        setAttendance(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Item))
-          .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-          .slice(0, 500));
-        setDataLoading(false);
-      }, onReadError),
-      onSnapshot(collection(db, 'logoutRequests'), snapshot => {
-        setRequests(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Item)).filter(item => item.status === 'pending'));
-        setDataLoading(false);
-      }, onReadError),
-      onSnapshot(collection(db, 'leaves'), snapshot => {
-        setLeaves(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Item)).filter(item => item.status === 'pending'));
-        setDataLoading(false);
-      }, onReadError),
-      onSnapshot(doc(db, 'settings', 'workplace'), snapshot => {
-        if (!snapshot.exists()) return;
-        const settings = snapshot.data();
-        setLatitude(String(settings.latitude ?? ''));
-        setLongitude(String(settings.longitude ?? ''));
-        setRadius(settings.radiusMeters == null ? '' : String(settings.radiusMeters));
-        setDataLoading(false);
-      }, onReadError),
-    ];
-    return () => { active = false; unsubs.forEach(unsubscribe => unsubscribe()); };
-  }, []);
+    void refresh();
+    const unsubscribe = subscribeWorkforce(() => { void refresh(); });
+    return () => { active = false; unsubscribe(); };
+  }, [attendanceDate]);
 
   const todayAttendance = useMemo(() => attendance.filter(record => record.date === localDate()), [attendance]);
   const visibleAttendance = useMemo(() => attendanceDate ? attendance.filter(record => record.date === attendanceDate) : attendance, [attendance, attendanceDate]);
@@ -73,12 +54,10 @@ export default function AdminEmployees() {
     event.preventDefault();
     setMessage('');
     try {
-      await setDoc(doc(db, 'settings', 'workplace'), {
-        latitude: Number(latitude), longitude: Number(longitude), radiusMeters: Number(radius),
-      });
+      await apiSaveWorkplace({ latitude: Number(latitude), longitude: Number(longitude), radiusMeters: Number(radius) });
       setMessage('Workplace location saved.');
     } catch {
-      setMessage('Could not save workplace settings. Check Firestore write access.');
+      setMessage('Could not save workplace settings. Check administrator access.');
     }
   };
 
@@ -86,15 +65,13 @@ export default function AdminEmployees() {
     event.preventDefault();
     setMessage('');
     try {
-      await addDoc(collection(db, 'calendar'), {
+      await apiPublishCalendarEvent({
         title: eventTitle.trim(), date: eventDate, type: eventType,
-        year: Number(eventDate.slice(0, 4)), isWorkingDay: eventType !== 'holiday',
-        createdAt: new Date().toISOString(),
       });
       setEventTitle('');
       setMessage('Calendar entry published.');
     } catch {
-      setMessage('Could not publish the calendar entry. Check Firestore write access.');
+      setMessage('Could not publish the calendar entry. Check administrator access.');
     }
   };
 
@@ -103,43 +80,21 @@ export default function AdminEmployees() {
     setMessage('');
     const uid = employeeId.trim();
     try {
-      await setDoc(doc(db, 'employees', uid), {
-        uid, name: employeeName.trim(), email: employeeEmail.trim(), role: 'employee',
-        createdAt: new Date().toISOString(),
-      }, { merge: true });
+      await apiSaveEmployee({ uid, name: employeeName.trim(), email: employeeEmail.trim(), role: 'employee' });
       setEmployeeId(''); setEmployeeName(''); setEmployeeEmail('');
       setMessage('Employee profile saved.');
     } catch {
-      setMessage('Could not save employee. Check the Firebase UID and Firestore write access.');
+      setMessage('Could not save employee. Check the Firebase UID and required employee details.');
     }
   };
 
   const approveCheckout = async (request: Item) => {
     setWorking(request.id); setMessage('');
     try {
-      const attendanceRef = doc(db, 'attendance', request.attendanceId);
-      const checkoutTime = new Date().toISOString();
-      let alreadyCheckedOut = false;
-      await runTransaction(db, async transaction => {
-        const snapshot = await transaction.get(attendanceRef);
-        if (!snapshot.exists()) throw new Error('Attendance record not found.');
-        const record = snapshot.data();
-        if (record.checkOut) { alreadyCheckedOut = true; return; }
-        const hours = record.checkIn ? (Date.now() - new Date(record.checkIn).getTime()) / 3_600_000 : 0;
-        transaction.update(attendanceRef, {
-          checkOut: checkoutTime, checkOutLocation: request.location,
-          status: hours < 4 ? 'half-day' : 'present', checkoutApprovedBy: 'admin',
-        });
-      });
-      if (alreadyCheckedOut) {
-        await setDoc(doc(db, 'logoutRequests', request.id), { status: 'resolved', resolvedAt: new Date().toISOString() }, { merge: true });
-        setMessage('This shift was already checked out. The request was closed.');
-        return;
-      }
-      await setDoc(doc(db, 'logoutRequests', request.id), { status: 'approved', resolvedAt: checkoutTime }, { merge: true });
+      await apiApproveCheckout(request.id);
       setMessage('Checkout approved and attendance updated.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not approve checkout. Check Firestore write access.');
+      setMessage(error instanceof Error ? error.message : 'Could not approve checkout.');
     } finally {
       setWorking('');
     }
@@ -148,10 +103,10 @@ export default function AdminEmployees() {
   const resolveLeave = async (leave: Item, status: 'approved' | 'rejected') => {
     setWorking(leave.id); setMessage('');
     try {
-      await setDoc(doc(db, 'leaves', leave.id), { status, reviewedAt: new Date().toISOString() }, { merge: true });
+      await apiReviewLeave(leave.id, status);
       setMessage(`Leave request ${status}.`);
     } catch {
-      setMessage('Could not update leave request. Check Firestore write access.');
+      setMessage('Could not update leave request.');
     } finally {
       setWorking('');
     }

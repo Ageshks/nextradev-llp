@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import db from '../db.js';
-import { authMiddleware } from '../auth.js';
+import { adminMiddleware } from '../auth.js';
 
 const router = Router();
 
@@ -33,7 +33,7 @@ router.get('/', (_req, res) => {
   })));
 });
 
-router.patch('/order', authMiddleware, (req, res) => {
+router.patch('/order', adminMiddleware, (req, res) => {
   const ids = req.body?.ids;
   const current = db.prepare('SELECT id FROM leadership ORDER BY display_order ASC, created_at DESC').all().map(row => row.id);
   if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length || ids.some(id => !current.includes(id))) {
@@ -56,7 +56,7 @@ function fields(body) {
   };
 }
 
-router.post('/', authMiddleware, upload.single('founderImage'), (req, res) => {
+router.post('/', adminMiddleware, upload.single('founderImage'), (req, res) => {
   const data = fields(req.body);
   if (!data) return res.status(400).json({ error: 'Name required' });
   if (!req.file) return res.status(400).json({ error: 'Founder photo required' });
@@ -68,7 +68,7 @@ router.post('/', authMiddleware, upload.single('founderImage'), (req, res) => {
   res.status(201).json({ id, ...data, image });
 });
 
-router.put('/:id', authMiddleware, upload.single('founderImage'), (req, res) => {
+router.put('/:id', adminMiddleware, upload.single('founderImage'), (req, res) => {
   const data = fields(req.body);
   if (!data) return res.status(400).json({ error: 'Name required' });
   const existing = db.prepare('SELECT image FROM leadership WHERE id = ?').get(req.params.id);
@@ -79,7 +79,7 @@ router.put('/:id', authMiddleware, upload.single('founderImage'), (req, res) => 
   res.json({ id: req.params.id, ...data, image });
 });
 
-router.delete('/:id', authMiddleware, (req, res) => {
+router.delete('/:id', adminMiddleware, (req, res) => {
   const result = db.prepare('DELETE FROM leadership WHERE id = ?').run(req.params.id);
   if (!result.changes) return res.status(404).json({ error: 'Not found' });
   res.json({ message: 'Removed' });

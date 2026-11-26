@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import db, { resetProjectsToDefaults } from '../db.js';
-import { authMiddleware } from '../auth.js';
+import db from '../db.js';
+import { adminMiddleware } from '../auth.js';
 
 const router = Router();
 const projectsDir = path.join(process.cwd(), 'public', 'uploads', 'projects');
@@ -37,7 +37,7 @@ router.get('/', (_req, res) => {
   })));
 });
 
-router.patch('/order', authMiddleware, (req, res) => {
+router.patch('/order', adminMiddleware, (req, res) => {
   const ids = req.body?.ids;
   const current = db.prepare('SELECT id FROM projects ORDER BY display_order ASC, created_at DESC').all().map(row => row.id);
   if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length || ids.some(id => !current.includes(id))) {
@@ -56,7 +56,7 @@ router.patch('/order', authMiddleware, (req, res) => {
 });
 
 // Admin: add project
-router.post('/', authMiddleware, upload.single('projectImage'), (req, res) => {
+router.post('/', adminMiddleware, upload.single('projectImage'), (req, res) => {
   const title = String(req.body?.title || '').trim().slice(0, 160);
   if (!title) return res.status(400).json({ error: 'Title required' });
   const id = req.body?.id ? String(req.body.id).slice(0, 64) : randomUUID();
@@ -71,7 +71,7 @@ router.post('/', authMiddleware, upload.single('projectImage'), (req, res) => {
 });
 
 // Admin: update project
-router.put('/:id', authMiddleware, upload.single('projectImage'), (req, res) => {
+router.put('/:id', adminMiddleware, upload.single('projectImage'), (req, res) => {
   const id = req.params.id;
   const existing = db.prepare('SELECT id, image FROM projects WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -86,16 +86,11 @@ router.put('/:id', authMiddleware, upload.single('projectImage'), (req, res) => 
 });
 
 // Admin: delete project
-router.delete('/:id', authMiddleware, (req, res) => {
+router.delete('/:id', adminMiddleware, (req, res) => {
   const info = db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.json({ message: 'Deleted' });
 });
 
 // Admin: reset to defaults
-router.post('/reset', authMiddleware, (_req, res) => {
-  resetProjectsToDefaults();
-  res.json({ message: 'Reset' });
-});
-
 export default router;

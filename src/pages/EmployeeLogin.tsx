@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '../lib/firebase';
-import { adminLogin, adminLogout } from '../utils/api';
+import { auth } from '../lib/firebase';
+import { getEmployeeProfile } from '../utils/workforceApi';
 
 export default function EmployeeLogin() {
   const [identifier, setIdentifier] = useState('');
@@ -18,31 +17,19 @@ export default function EmployeeLogin() {
     setError('');
 
     try {
-      if (identifier.includes('@')) {
-        adminLogout();
-        const credential = await signInWithEmailAndPassword(auth, identifier.trim(), password);
-        const employeeSnapshot = await getDoc(doc(db, 'employees', credential.user.uid));
-        if (!employeeSnapshot.exists()) {
-          await signOut(auth);
-          throw new Error('This account does not have an employee profile. Contact your administrator.');
-        }
-        const role = String(employeeSnapshot.data().role || 'employee').toLowerCase();
-        if (['admin', 'super_admin', 'super admin', 'hr', 'hr_manager'].includes(role)) navigate('/admin/employees', { replace: true });
-        else if (['employee', 'developer', 'project_manager', 'sales_executive', 'finance_manager'].includes(role)) navigate('/employee', { replace: true });
-        else {
-          await signOut(auth);
-          throw new Error('Your account role is not configured. Contact your administrator.');
-        }
-      } else {
-        await signOut(auth).catch(() => undefined);
-        const account = await adminLogin(identifier.trim(), password);
-        const role = account.role.toLowerCase();
-        if (role === 'super_admin' || role === 'super admin' || role === 'admin') navigate('/admin', { replace: true });
-        else if (role === 'hr') navigate('/admin/employees', { replace: true });
-        else navigate('/admin/tasks', { replace: true });
+      await signInWithEmailAndPassword(auth, identifier.trim(), password);
+      const employeeProfile = await getEmployeeProfile();
+      if (!employeeProfile.active) throw new Error('This company account is inactive. Contact your administrator.');
+      const role = String(employeeProfile.role || '').toLowerCase();
+      if (['admin', 'super_admin', 'super admin'].includes(role)) navigate('/admin', { replace: true });
+      else if (['hr', 'hr_manager'].includes(role)) navigate('/admin/employees', { replace: true });
+      else if (['employee', 'developer', 'project_manager', 'sales_executive', 'finance_manager'].includes(role)) navigate('/employee', { replace: true });
+      else {
+        await signOut(auth);
+        throw new Error('Your account role is not configured. Contact your administrator.');
       }
     } catch (reason: unknown) {
-      if (identifier.includes('@')) await signOut(auth).catch(() => undefined);
+      await signOut(auth).catch(() => undefined);
       setError(reason instanceof Error ? reason.message : 'Sign in failed. Check your credentials and try again.');
     } finally {
       setBusy(false);
@@ -55,11 +42,11 @@ export default function EmployeeLogin() {
         <div>
           <p className="text-sm font-semibold text-blue-600">NEXTRADEV WORKSPACE</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Sign in</h1>
-          <p className="mt-2 text-sm text-slate-600">Employees use their work email. Admins use their admin username.</p>
+          <p className="mt-2 text-sm text-slate-600">Sign in with your company Firebase Authentication email.</p>
         </div>
         <label className="block text-sm font-medium text-slate-700">
-          Work email or admin username
-          <input required autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500" />
+          Work email
+          <input required type="email" autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500" />
         </label>
         <label className="block text-sm font-medium text-slate-700">
           Password

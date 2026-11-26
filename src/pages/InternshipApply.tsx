@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import SectionHeading from '../components/ui/SectionHeading';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { internships } from '../data/internships';
-import { addApplication, isDuplicate } from '../utils/applicationStorage';
+import { addApplication, getOpenings, isDuplicate } from '../utils/applicationStorage';
 import useSEO from '../hooks/useSEO';
 
 const MAX_FILE = 5 * 1024 * 1024;
@@ -12,12 +11,15 @@ const MAX_FILE = 5 * 1024 * 1024;
 export default function InternshipApply() {
   useSEO({ title: 'Apply for Internship | Nextradev Technologies LLP', description: 'Apply for an internship at Nextradev Technologies LLP and gain real-world software development experience.', path: '/internships/apply', keywords: ['internship application'], jsonLd: { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nextradev.com/' }, { '@type': 'ListItem', position: 2, name: 'Internships', item: 'https://nextradev.com/internships' }, { '@type': 'ListItem', position: 3, name: 'Apply', item: 'https://nextradev.com/internships/apply' }] } });
   const [params] = useSearchParams();
+  const [openings, setOpenings] = useState<any[]>([]);
   const [form, setForm] = useState({ fullName:'', email:'', phone:'', college:'', education:'', position: params.get('position') || '', mode:'', skills:'', motivation:'' });
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<'idle'|'loading'|'success'|'error'>('idle');
   const [message, setMessage] = useState('');
+
+  useEffect(() => { getOpenings().then(rows => setOpenings(Array.isArray(rows) ? rows : [])).catch(() => setOpenings([])); }, []);
 
   const validate = () => {
     const e: Record<string,string> = {};
@@ -118,7 +120,7 @@ export default function InternshipApply() {
             <div>
               <select value={form.position} onChange={e=>setForm({...form,position:e.target.value})} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-cyan-400">
                 <option value="">Internship Position *</option>
-                {internships.map(i => <option key={i.id} value={i.title}>{i.title}</option>)}
+                {openings.map(i => <option key={i.id} value={i.title}>{i.title}</option>)}
               </select>
               {errors.position && <p className="text-red-400 text-xs mt-1">{errors.position}</p>}
             </div>

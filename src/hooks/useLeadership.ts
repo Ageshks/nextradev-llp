@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { leadership as defaults } from '../data/leadership';
-import type { Leader } from '../data/leadership';
 import { getLeadership, resolveMediaUrl } from '../utils/api';
+import type { Leader } from '../utils/api';
 
 export default function useLeadership() {
-  const [leaders, setLeaders] = useState<Leader[]>(defaults);
+  const [leaders, setLeaders] = useState<Leader[]>([]);
   useEffect(() => {
     let active = true;
     getLeadership().then(rows => { if (active) setLeaders(rows); }).catch(() => {});

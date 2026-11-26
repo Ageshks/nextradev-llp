@@ -41,6 +41,7 @@ export default function About() {
           </Card>
         ))}
       </div>
+      {!leadership.length&&<p className="text-center text-muted">Leadership profiles will appear here once published.</p>}
     </div>
   );
 }

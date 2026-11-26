@@ -1,127 +1,77 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness, Building2, CalendarDays,
-  Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, ClipboardList, Clock3,
-  FileText, FolderKanban, Gauge, HelpCircle, LayoutDashboard, LogOut, Menu, MoreHorizontal, Plus,
-  Search, Settings, ShieldCheck, Sparkles, Users, Wallet, X,
-} from 'lucide-react';
+import { Activity, BriefcaseBusiness, CalendarDays, ClipboardList, Clock3, LayoutDashboard, LogOut, Menu, Users, X } from 'lucide-react';
+import { useAuthListener } from '../../context/AuthContext';
+import { listAttendance, listCheckoutRequests, listEmployees, listLeaves, listTasks, subscribeWorkforce, type WorkforceRow } from '../../utils/workforceApi';
 import './AdminWorkspace.css';
 
-type Section = { label: string; icon: typeof LayoutDashboard; group: string };
-const sections: Section[] = [
-  { group:'Overview', label:'Dashboard', icon:LayoutDashboard }, { group:'Overview', label:'Analytics', icon:Gauge },
-  { group:'Organization', label:'Employees', icon:Users }, { group:'Organization', label:'Departments', icon:Building2 },
-  { group:'Organization', label:'Attendance', icon:Clock3 }, { group:'Organization', label:'Leave management', icon:CalendarDays },
-  { group:'Organization', label:'Payroll', icon:Wallet }, { group:'Organization', label:'Task management', icon:ClipboardList },
-  { group:'Business', label:'Clients', icon:BriefcaseBusiness }, { group:'Business', label:'Leads & enquiries', icon:Activity },
-  { group:'Business', label:'Projects', icon:FolderKanban }, { group:'Business', label:'Contracts', icon:FileText },
-  { group:'Business', label:'Proposals & quotations', icon:FileText },
-  { group:'Finance', label:'Revenue', icon:ArrowUpRight }, { group:'Finance', label:'Expenses', icon:ArrowDownRight },
-  { group:'Finance', label:'Invoices & payments', icon:CircleDollarSign }, { group:'Finance', label:'Financial reports', icon:FileText },
-  { group:'Operations', label:'Services & products', icon:BriefcaseBusiness }, { group:'Operations', label:'Subscriptions', icon:Activity },
-  { group:'Operations', label:'Support tickets', icon:HelpCircle }, { group:'Operations', label:'Notifications', icon:Bell },
-  { group:'Marketing', label:'Campaigns & SEO', icon:Sparkles },
-  { group:'Administration', label:'Roles & permissions', icon:ShieldCheck }, { group:'Administration', label:'Activity logs', icon:Activity },
-  { group:'Administration', label:'Company settings', icon:Settings },
+const dateToday = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const nav = [
+  { label: 'Dashboard', to: '/admin', icon: LayoutDashboard },
+  { label: 'Employees & attendance', to: '/admin/employees', icon: Users },
+  { label: 'Task management', to: '/admin/tasks', icon: ClipboardList },
+  { label: 'Website content', to: '/admin/internships', icon: BriefcaseBusiness },
 ];
 
-const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const revenue=[38,44,41,58,53,68,63,75,70,86,80,94];
-const projectRows=[
-  {name:'Nextradev Client Portal',client:'Atlas Ventures',lead:'Ananya Rao',progress:78,status:'In progress',due:'Dec 12',color:'blue'},
-  {name:'Mobile Banking Suite',client:'Northstar Finance',lead:'Rohan Mehta',progress:56,status:'In progress',due:'Dec 18',color:'violet'},
-  {name:'Commerce Platform v2',client:'Orbit Retail',lead:'Mira Shah',progress:91,status:'Client review',due:'Dec 04',color:'amber'},
-  {name:'CareConnect',client:'Carewell Group',lead:'Dev Patel',progress:34,status:'Planning',due:'Jan 08',color:'emerald'},
-];
-const team=[
-  {name:'Ananya Rao',role:'Product designer',team:'Design',initials:'AR',tone:'lavender',status:'Available'},
-  {name:'Rohan Mehta',role:'Senior engineer',team:'Engineering',initials:'RM',tone:'blue',status:'On project'},
-  {name:'Mira Shah',role:'Project manager',team:'Delivery',initials:'MS',tone:'peach',status:'Available'},
-  {name:'Dev Patel',role:'Backend engineer',team:'Engineering',initials:'DP',tone:'mint',status:'On leave'},
-];
-const activity=[
-  {name:'Mira Shah',action:'moved Commerce Platform v2 to client review',time:'12 min ago',initials:'MS',tone:'peach'},
-  {name:'Finance team',action:'recorded a payment from Atlas Ventures',time:'48 min ago',initials:'FN',tone:'mint'},
-  {name:'Ananya Rao',action:'submitted a design review for approval',time:'2 hours ago',initials:'AR',tone:'lavender'},
-  {name:'System',action:'created a reminder for the CareConnect milestone',time:'3 hours ago',initials:'NX',tone:'blue'},
-];
-const navRoutes:Record<string,string>={Employees:'/admin/employees',Attendance:'/admin/employees','Leave management':'/admin/employees','Task management':'/admin/tasks',Projects:'/admin/internships?tab=projects','Leads & enquiries':'/admin/internships', 'Services & products':'/admin/internships?tab=openings'};
+export default function AdminWorkspace() {
+  const { signOut, user } = useAuthListener();
+  const navigate = useNavigate();
+  const [employees, setEmployees] = useState<WorkforceRow[]>([]);
+  const [attendance, setAttendance] = useState<WorkforceRow[]>([]);
+  const [tasks, setTasks] = useState<WorkforceRow[]>([]);
+  const [leaves, setLeaves] = useState<WorkforceRow[]>([]);
+  const [checkoutRequests, setCheckoutRequests] = useState<WorkforceRow[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-function Avatar({initials,tone='blue',size='md'}:{initials:string;tone?:string;size?:'sm'|'md'|'lg'}) {
-  return <span className={`avatar avatar-${tone} avatar-${size}`}>{initials}</span>;
-}
-function Trend({positive=true}:{positive?:boolean}) { return <span className={`trend ${positive?'trend-up':'trend-down'}`}>{positive?<ArrowUpRight size={13}/>:<ArrowDownRight size={13}/>} {positive?'+':'−'}12.8%</span>; }
-function Sparkline({values,color='#3266ee'}:{values:number[];color?:string}) {
-  const max=Math.max(...values), min=Math.min(...values), points=values.map((value,index)=>`${index*20},${32-((value-min)/(max-min||1))*27}`).join(' ');
-  return <svg viewBox="0 0 220 36" className="h-9 w-full overflow-visible" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="220" cy={32-((values.at(-1)!-min)/(max-min||1))*27} r="3" fill={color}/></svg>;
-}
-function RevenueChart() {
-  const points=revenue.map((value,index)=>`${index*56},${160-(value-30)*1.32}`).join(' ');
-  return <div className="chart-wrap"><svg viewBox="0 0 616 190" preserveAspectRatio="none" className="h-[190px] w-full"><defs><linearGradient id="revenueFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#3266ee" stopOpacity=".18"/><stop offset="100%" stopColor="#3266ee" stopOpacity="0"/></linearGradient></defs>{[25,65,105,145].map(y=><line key={y} x1="0" x2="616" y1={y} y2={y} stroke="#edf0f4" strokeDasharray="4 5"/>)}<polygon points={`0,190 ${points} 616,190`} fill="url(#revenueFill)"/><polyline points={points} fill="none" stroke="#3266ee" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/><polyline points={revenue.map((v,i)=>`${i*56},${168-(v-30)*.85}`).join(' ')} fill="none" stroke="#b8c5dc" strokeWidth="2" strokeDasharray="5 6" strokeLinecap="round"/></svg><div className="chart-labels">{months.map(m=><span key={m}>{m}</span>)}</div></div>;
-}
-function progressColor(color:string){return ({blue:'bg-blue-500',violet:'bg-violet-500',amber:'bg-amber-500',emerald:'bg-emerald-500'} as Record<string,string>)[color]||'bg-blue-500';}
+  const refresh = useCallback(async () => {
+    const results = await Promise.allSettled([listEmployees(), listAttendance(dateToday()), listTasks(), listLeaves(), listCheckoutRequests()]);
+    const issues: string[] = [];
+    const setters = [setEmployees, setAttendance, setTasks, setLeaves, setCheckoutRequests];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') setters[index](result.value);
+      else issues.push(result.reason instanceof Error ? result.reason.message : 'Some dashboard data could not be loaded.');
+    });
+    setError(issues.join(' ')); setLoading(false);
+  }, []);
 
-export default function AdminWorkspace(){
- const [active,setActive]=useState('Dashboard');
- const [collapsed,setCollapsed]=useState(false);
- const [mobileOpen,setMobileOpen]=useState(false);
- const [query,setQuery]=useState('');
- const [range,setRange]=useState('Last 12 months');
- const [toast,setToast]=useState('');
- const navigate=useNavigate();
- const groups=useMemo(()=>Array.from(new Set(sections.map(item=>item.group))),[]);
- const go=(section:string)=>{const destination=navRoutes[section];if(destination){navigate(destination);return;}setActive(section);setMobileOpen(false);};
- const signOut=()=>{sessionStorage.removeItem('nextradev_admin_token');navigate('/login');};
- const filteredTeam=team.filter(person=>`${person.name} ${person.role} ${person.team}`.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => { void refresh(); return subscribeWorkforce(() => { void refresh(); }); }, [refresh]);
 
- return <div className="workspace-shell">
-   <aside className={`workspace-sidebar ${collapsed?'is-collapsed':''} ${mobileOpen?'mobile-open':''}`}>
-    <div className="sidebar-brand"><div className="brand-mark">N</div>{!collapsed&&<div><strong>NEXTRADEV</strong><span>Company workspace</span></div>}<button className="sidebar-close" onClick={()=>setMobileOpen(false)} aria-label="Close navigation"><X size={18}/></button></div>
-    <div className="workspace-switch"><span className="workspace-icon"><Building2 size={17}/></span>{!collapsed&&<><span><b>Nextradev Technologies</b><small>Enterprise plan</small></span><ChevronDown size={15}/></>}</div>
-    <nav className="sidebar-nav" aria-label="Management modules">{groups.map(group=><div className="nav-group" key={group}><p className="nav-group-title">{!collapsed?group:group.slice(0,1)}</p>{sections.filter(item=>item.group===group).map(item=>{const Icon=item.icon;return <button key={item.label} title={collapsed?item.label:undefined} onClick={()=>go(item.label)} className={`sidebar-link ${active===item.label?'active':''}`}><Icon size={18}/>{!collapsed&&<span>{item.label}</span>}{!collapsed&&item.label==='Notifications'&&<i className="nav-dot"/>}</button>})}</div>)}</nav>
-    <div className="sidebar-bottom"><button className="sidebar-link" onClick={()=>go('Company settings')}><HelpCircle size={18}/>{!collapsed&&<span>Help center</span>}</button><div className="sidebar-user"><Avatar initials="AS" tone="blue"/>{!collapsed&&<><span><b>Agesh S</b><small>Super Admin</small></span><button aria-label="Sign out" onClick={signOut}><LogOut size={16}/></button></>}</div></div>
-    <button className="collapse-toggle" onClick={()=>setCollapsed(!collapsed)} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>{collapsed?<ChevronRight size={16}/>:<ChevronLeft size={16}/>}</button>
-   </aside>
-   <div className="workspace-main">
-    <header className="workspace-topbar"><button className="mobile-menu" onClick={()=>setMobileOpen(true)} aria-label="Open navigation"><Menu/></button><div className="breadcrumbs"><span>Workspace</span><ChevronRight size={14}/><b>{active}</b></div><div className="topbar-actions"><label className="global-search"><Search size={16}/><input aria-label="Search dashboard" placeholder="Search anything..." value={query} onChange={e=>setQuery(e.target.value)}/><kbd>⌘ K</kbd></label><button className="top-icon" aria-label="Notifications" onClick={()=>setActive('Notifications')}><Bell size={18}/><i/></button><span className="topbar-divider"/><button className="profile-button" onClick={()=>setActive('Company settings')}><Avatar initials="AS" tone="blue" size="sm"/><span>Agesh S</span><ChevronDown size={14}/></button></div></header>
-    <main className="workspace-content">
-      {active==='Dashboard'?<>
-       <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-mark"/> {new Intl.DateTimeFormat('en-IN',{weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(new Date()).toUpperCase()}</div><h1>Good morning, Agesh <span>✦</span></h1><p>Here’s what’s happening across your company today.</p></div><div className="heading-controls"><button className="range-select" onClick={()=>setRange(range==='Last 12 months'?'This year':'Last 12 months')}><CalendarDays size={16}/>{range}<ChevronDown size={14}/></button><button className="primary-action" onClick={()=>setToast('Choose a module from the sidebar to create a new record.')}><Plus size={17}/> Create new</button></div></div>
-       <div className="prototype-note"><Sparkles size={15}/><span>Preview dashboard · sample financial and project metrics</span><button onClick={()=>setToast('Connect your finance and project systems to replace preview figures with live company data.')}>About this data</button></div>
-       <div className="kpi-grid">
-        {[
-          {label:'Total revenue',value:'₹48,26,500',delta:'+18.4%',color:'blue',icon:CircleDollarSign,values:[8,12,10,19,17,22,18,27,24,31,29,36]},
-          {label:'Monthly revenue',value:'₹6,84,200',delta:'+12.8%',color:'violet',icon:Wallet,values:[9,13,12,17,15,19,17,24,23,28,26,33]},
-          {label:'Total expenses',value:'₹18,42,800',delta:'−4.2%',color:'amber',icon:ArrowDownRight,negative:true,values:[31,28,29,24,26,23,25,20,22,19,20,17]},
-          {label:'Net profit',value:'₹29,83,700',delta:'+21.6%',color:'mint',icon:Activity,values:[7,11,9,15,17,18,19,24,22,29,31,37]},
-          {label:'Active projects',value:'12',delta:'+2 this month',color:'blue',icon:FolderKanban,values:[9,10,9,11,10,11,12,11,12,12,11,12],textDelta:true},
-          {label:'Completed projects',value:'38',delta:'+6 this quarter',color:'mint',icon:Check,values:[16,19,20,21,24,25,26,29,31,33,35,38],textDelta:true},
-          {label:'Team members',value:'24',delta:'+3 this month',color:'violet',icon:Users,values:[15,15,16,17,18,18,19,20,21,22,23,24],textDelta:true},
-          {label:'Active clients',value:'16',delta:'+2 this month',color:'amber',icon:BriefcaseBusiness,values:[8,9,9,10,10,11,12,12,13,14,14,16],textDelta:true},
-        ].map(kpi=>{const Icon=kpi.icon;return <article className="kpi-card" key={kpi.label}><div className="kpi-top"><span>{kpi.label}</span><span className={`kpi-icon icon-${kpi.color}`}><Icon size={18}/></span></div><div className="kpi-value">{kpi.value}</div><div className="kpi-bottom">{kpi.textDelta?<span className="kpi-text-delta">{kpi.delta}</span>:<Trend positive={!kpi.negative}/>}<span className="compare-label">vs previous period</span></div><div className="kpi-spark"><Sparkline values={kpi.values} color={kpi.negative?'#e4a83c':kpi.color==='mint'?'#22a987':kpi.color==='violet'?'#8666dc':'#3266ee'}/></div></article>})}
-       </div>
-       <div className="dashboard-grid"><section className="panel revenue-panel"><div className="panel-heading"><div><h2>Revenue overview</h2><p>Income compared with expenses over time</p></div><button className="subtle-select" onClick={()=>setRange(range==='Last 12 months'?'Last 30 days':'Last 12 months')}>{range}<ChevronDown size={13}/></button></div><div className="revenue-total"><strong>₹6,84,200</strong><span><ArrowUpRight size={14}/> 12.8%</span><small>vs last month</small></div><div className="chart-legend"><span><i className="legend-blue"/> Revenue</span><span><i className="legend-gray"/> Expenses</span></div><RevenueChart/></section>
-        <section className="panel activity-panel"><div className="panel-heading"><div><h2>Recent activity</h2><p>Latest updates from your team</p></div><button className="icon-more" aria-label="More activity options"><MoreHorizontal size={19}/></button></div><div className="activity-list">{activity.map(item=><div className="activity-item" key={item.action}><Avatar initials={item.initials} tone={item.tone} size="sm"/><div><p><b>{item.name}</b> {item.action}</p><small>{item.time}</small></div></div>)}</div><button className="text-link" onClick={()=>setActive('Activity logs')}>View activity log <ArrowRight size={14}/></button></section>
-       </div>
-       <div className="dashboard-grid lower-grid"><section className="panel project-panel"><div className="panel-heading"><div><h2>Project health</h2><p>Delivery progress across active work</p></div><button className="text-link" onClick={()=>navigate('/admin/internships?tab=projects')}>All projects <ArrowRight size={14}/></button></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Project</th><th>Project lead</th><th>Progress</th><th>Status</th><th>Due date</th></tr></thead><tbody>{projectRows.map(project=><tr key={project.name}><td><div className="table-project"><span className={`project-bullet bullet-${project.color}`}/><span><b>{project.name}</b><small>{project.client}</small></span></div></td><td><div className="person-cell"><Avatar initials={project.lead.split(' ').map(n=>n[0]).join('')} size="sm" tone="blue"/><span>{project.lead}</span></div></td><td><div className="progress-cell"><div className="progress-track"><i className={progressColor(project.color)} style={{width:`${project.progress}%`}}/></div><span>{project.progress}%</span></div></td><td><span className={`status-pill status-${project.color}`}>{project.status}</span></td><td>{project.due}</td></tr>)}</tbody></table></div></section>
-        <section className="panel deadline-panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Items that need attention</p></div><button className="icon-more" aria-label="More deadlines"><MoreHorizontal size={19}/></button></div><div className="deadline-list"><div className="deadline-item"><span className="deadline-date"><b>04</b><small>DEC</small></span><div><b>Commerce Platform v2</b><small>Client review · Orbit Retail</small></div><span className="deadline-tag tag-amber">3 days</span></div><div className="deadline-item"><span className="deadline-date"><b>08</b><small>DEC</small></span><div><b>Q4 invoice follow-up</b><small>Finance · Atlas Ventures</small></div><span className="deadline-tag tag-blue">1 week</span></div><div className="deadline-item"><span className="deadline-date"><b>12</b><small>DEC</small></span><div><b>Client Portal milestone</b><small>Development · Atlas Ventures</small></div><span className="deadline-tag tag-blue">2 weeks</span></div></div><button className="text-link" onClick={()=>setActive('Projects')}>View project timeline <ArrowRight size={14}/></button></section></div>
-       <div className="dashboard-grid team-grid"><section className="panel team-panel"><div className="panel-heading"><div><h2>Team availability</h2><p>People and capacity snapshot</p></div><button className="text-link" onClick={()=>navigate('/admin/employees')}>Employee directory <ArrowRight size={14}/></button></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Team member</th><th>Department</th><th>Availability</th><th>Current focus</th></tr></thead><tbody>{filteredTeam.map(person=><tr key={person.name}><td><div className="person-cell"><Avatar initials={person.initials} tone={person.tone} size="sm"/><span><b>{person.name}</b><small>{person.role}</small></span></div></td><td>{person.team}</td><td><span className={`presence ${person.status==='Available'?'presence-green':person.status==='On leave'?'presence-gray':'presence-blue'}`}>{person.status}</span></td><td>{person.status==='On leave'?'—':person.team==='Engineering'?'Client delivery':'Product design'}</td></tr>)}</tbody></table></div></section><section className="panel quick-panel"><div className="panel-heading"><div><h2>Quick access</h2><p>Frequent workflows</p></div></div><div className="quick-actions"><Link to="/admin/tasks"><span className="quick-icon quick-blue"><ClipboardList size={18}/></span><span><b>Assign a task</b><small>Send work to a teammate</small></span><ArrowRight size={16}/></Link><Link to="/admin/employees"><span className="quick-icon quick-violet"><Users size={18}/></span><span><b>People & attendance</b><small>Manage your team</small></span><ArrowRight size={16}/></Link><Link to="/admin/internships?tab=vacancies"><span className="quick-icon quick-amber"><BriefcaseBusiness size={18}/></span><span><b>Post a vacancy</b><small>Update the careers page</small></span><ArrowRight size={16}/></Link><button onClick={()=>setToast('A new client form will be available when the client records module is connected.')}><span className="quick-icon quick-mint"><Plus size={18}/></span><span><b>Add a client</b><small>Start a new relationship</small></span><ArrowRight size={16}/></button></div></section></div>
-      </>:<ModuleView active={active} query={query} onReturn={()=>setActive('Dashboard')} onToast={setToast} onNavigate={go}/>}
-    </main>
-    <footer className="workspace-footer"><span>© 2026 Nextradev Technologies LLP</span><span>Workspace preview <i/> All systems operational</span></footer>
-   </div>
-   <AnimatePresence>{toast&&<motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:8}} className="workspace-toast" role="status"><Check size={17}/>{toast}<button aria-label="Dismiss notification" onClick={()=>setToast('')}><X size={15}/></button></motion.div>}</AnimatePresence>
-   {mobileOpen&&<button className="sidebar-backdrop" onClick={()=>setMobileOpen(false)} aria-label="Close menu"/>}
+  const checkedIn = attendance.filter(record => record.checkIn && !record.checkOut).length;
+  const activeTasks = tasks.filter(task => task.status !== 'completed').length;
+  const todayAttendance: WorkforceRow[] = attendance.map(record => ({ ...record, employee: employees.find(person => person.uid === record.employeeId) }));
+  const leavePending = leaves.filter(leave => leave.status === 'pending');
+  const adminName = user?.displayName || user?.email?.split('@')[0] || 'Administrator';
+  const logout = async () => { await signOut(); navigate('/login'); };
+
+  return <div className="workspace-shell">
+    <aside className={`workspace-sidebar ${menuOpen ? 'mobile-open' : ''}`}>
+      <div className="sidebar-brand"><div className="brand-mark">N</div><div><strong>NEXTRADEV</strong><span>Company workspace</span></div><button className="sidebar-close" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><X size={18}/></button></div>
+      <div className="workspace-switch"><span className="workspace-icon"><BriefcaseBusiness size={17}/></span><span><b>Nextradev Technologies</b><small>Operations</small></span></div>
+      <nav className="sidebar-nav" aria-label="Admin navigation"><div className="nav-group"><p className="nav-group-title">WORKSPACE</p>{nav.map(item => { const Icon=item.icon; return <Link key={item.to} to={item.to} onClick={()=>setMenuOpen(false)} className={`sidebar-link ${item.to==='/admin'?'active':''}`}><Icon size={18}/><span>{item.label}</span></Link>; })}</div></nav>
+      <div className="sidebar-bottom"><div className="sidebar-user"><span className="avatar avatar-blue avatar-md">{adminName.split(/\s+/).map(part=>part[0]).join('').slice(0,2).toUpperCase()}</span><span><b>{adminName}</b><small>Firebase account</small></span><button aria-label="Sign out" onClick={logout}><LogOut size={16}/></button></div></div>
+    </aside>
+    <div className="workspace-main">
+      <header className="workspace-topbar"><button className="mobile-menu" onClick={()=>setMenuOpen(true)} aria-label="Open navigation"><Menu/></button><div className="breadcrumbs"><span>Workspace</span><Activity size={14}/><b>Dashboard</b></div><div className="topbar-actions"><span className="profile-button"><span>{adminName}</span></span></div></header>
+      <main className="workspace-content">
+        <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-mark"/>{new Intl.DateTimeFormat('en-IN',{weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(new Date()).toUpperCase()}</div><h1>Company operations</h1><p>Live employee, attendance, leave, and task activity.</p></div></div>
+        {error&&<p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
+        <div className="kpi-grid">
+          {[[Users,'Active employees',employees.filter(person=>person.active).length,'icon-blue'],[Clock3,'Checked in today',checkedIn,'icon-violet'],[ClipboardList,'Open tasks',activeTasks,'icon-amber'],[CalendarDays,'Leave awaiting review',leavePending.length,'icon-mint']].map(([Icon,label,value,tone]:any)=><article className="kpi-card" key={label}><div className="kpi-top"><span>{label}</span><span className={`kpi-icon ${tone}`}><Icon size={17}/></span></div><div className="kpi-value">{loading?'—':value}</div></article>)}
+        </div>
+        <div className="dashboard-grid">
+          <section className="panel"><div className="panel-heading"><div><h2>Today’s attendance</h2><p>Live check-in status · {dateToday()}</p></div><Link className="text-link" to="/admin/employees">View attendance <span>→</span></Link></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Employee</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>{todayAttendance.map(record=><tr key={record.id}><td><b>{record.employee?.name||record.employee?.email||record.employeeId}</b><small>{record.employee?.department||''}</small></td><td>{record.checkIn?new Date(record.checkIn).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'—'}</td><td>{record.checkOut?new Date(record.checkOut).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):record.checkIn?'On shift':'—'}</td><td><span className="status-pill status-blue capitalize">{String(record.status||'present').replace('-',' ')}</span></td></tr>)}</tbody></table></div>{!loading&&!todayAttendance.length&&<p className="employee-empty">No attendance has been recorded today.</p>}</section>
+          <section className="panel"><div className="panel-heading"><div><h2>Needs attention</h2><p>Pending employee actions</p></div></div>
+            <div className="quick-actions"><Link to="/admin/employees"><span className="quick-icon quick-amber"><MapPinIcon/></span><span><b>Checkout approvals</b><small>{checkoutRequests.length} pending</small></span><span>→</span></Link><Link to="/admin/employees"><span className="quick-icon quick-violet"><CalendarDays size={18}/></span><span><b>Leave requests</b><small>{leavePending.length} awaiting review</small></span><span>→</span></Link><Link to="/admin/tasks"><span className="quick-icon quick-blue"><ClipboardList size={18}/></span><span><b>Task reports</b><small>{tasks.filter(task=>task.status==='completed'&&task.report).length} submitted</small></span><span>→</span></Link></div>
+          </section>
+        </div>
+        <section className="panel mt-4"><div className="panel-heading"><div><h2>Recently updated tasks</h2><p>Updates from the live workforce database</p></div><Link className="text-link" to="/admin/tasks">All tasks →</Link></div>{tasks.slice(0,6).map(task=><div key={task.id} className="employee-request-row"><div><strong>{task.title}</strong><p>{employees.find(person=>person.uid===task.employeeId)?.name||task.employeeId} · Updated {new Date(task.updatedAt||task.createdAt).toLocaleString()}</p></div><span className="status-pill status-blue capitalize">{String(task.status||'pending').replace('-',' ')}</span></div>)}{!loading&&!tasks.length&&<p className="employee-empty">No tasks have been assigned.</p>}</section>
+        <footer className="workspace-footer"><span>© {new Date().getFullYear()} Nextradev Technologies LLP</span><span>Live company records</span></footer>
+      </main>
+    </div>
+    {menuOpen&&<button className="sidebar-backdrop" onClick={()=>setMenuOpen(false)} aria-label="Close navigation"/>}
   </div>;
 }
 
-function ModuleView({active,query,onReturn,onToast,onNavigate}:{active:string;query:string;onReturn:()=>void;onToast:(message:string)=>void;onNavigate:(section:string)=>void}){
- const items=active==='Employees'?team.filter(p=>`${p.name} ${p.role}`.toLowerCase().includes(query.toLowerCase())):projectRows;
- const title=active;
- const moduleDescription:Record<string,string>={Analytics:'Performance indicators and business trends across Nextradev.',Employees:'Employee directory, roles, departments, and availability.',Departments:'Organize people into delivery teams and business units.',Attendance:'Review check-ins, shift status, and location exceptions.', 'Leave management':'Review time off requests and team availability.',Payroll:'Salary schedules and payroll operations.', 'Task management':'Coordinate assignments, priorities, and delivery.',Clients:'Client relationships, contacts, and account health.', 'Leads & enquiries':'New business pipeline and incoming requests.',Projects:'Delivery portfolio, milestones, and project health.',Contracts:'Agreements and renewal dates.', 'Proposals & quotations':'Commercial proposals prepared for clients.',Revenue:'Income tracking by month, client, and project.',Expenses:'Company costs and expense categories.', 'Invoices & payments':'Billing status, due dates, and payment records.', 'Financial reports':'Company finance summaries and exports.', 'Services & products':'Published services and offerings.',Subscriptions:'Recurring service contracts.', 'Support tickets':'Customer requests and response status.',Notifications:'Approvals, deadlines, and company updates.', 'Campaigns & SEO':'Marketing activity and website performance.', 'Roles & permissions':'Access levels for company workspaces.', 'Activity logs':'Recent changes and user actions.', 'Company settings':'Company profile and workspace preferences.'};
- const kanban=['Not started','Planning','In progress','Testing','Client review','Completed'];
- const content=active==='Projects'?<div className="kanban-board">{kanban.map((status,index)=><section className="kanban-column" key={status}><div className="kanban-head"><span>{status}</span><i>{index===2?5:index===4?2:index===5?8:1}</i></div>{projectRows.slice(index%2,index%2+2).map(project=><article className="kanban-card" key={`${status}-${project.name}`}><div className="kanban-card-top"><span className={`status-pill status-${project.color}`}>{project.client}</span><button aria-label="Project options" onClick={()=>onToast('Project options are managed in the Projects workspace.')}>•••</button></div><h3>{project.name}</h3><p>{project.lead} · Due {project.due}</p><div className="progress-track"><i className={progressColor(project.color)} style={{width:`${Math.min(project.progress,index===0?25:project.progress)}%`}}/></div><footer><span>{Math.min(project.progress,index===0?25:project.progress)}% complete</span><Avatar initials={project.lead.split(' ').map(n=>n[0]).join('')} tone="blue" size="sm"/></footer></article>)}</section>)}</div>:active==='Employees'?<div className="panel module-panel"><div className="table-scroll"><table className="data-table"><thead><tr><th>Employee</th><th>Department</th><th>Availability</th><th>Employment</th><th>Actions</th></tr></thead><tbody>{items.map((p:any)=><tr key={p.name}><td><div className="person-cell"><Avatar initials={p.initials} tone={p.tone} size="sm"/><span><b>{p.name}</b><small>{p.role}</small></span></div></td><td>{p.team}</td><td><span className="presence presence-green">{p.status}</span></td><td>Full time</td><td><button className="text-link" onClick={()=>onNavigate('Attendance')}>View profile <ArrowRight size={14}/></button></td></tr>)}</tbody></table></div></div>:active==='Analytics'||active.includes('Revenue')||active.includes('Financial')?<div className="module-grid"><section className="panel revenue-panel"><div className="panel-heading"><div><h2>Revenue vs expenses</h2><p>Monthly performance · INR</p></div><button className="subtle-select">2026 <ChevronDown size={13}/></button></div><div className="revenue-total"><strong>₹48,26,500</strong><span><ArrowUpRight size={14}/> 18.4%</span></div><RevenueChart/></section><section className="panel"><div className="panel-heading"><div><h2>Business health</h2><p>Current quarter</p></div></div>{[['Project delivery','86%'],['Client retention','94%'],['Lead conversion','31%'],['Profit margin','61%']].map(([label,value])=><div className="metric-row" key={label}><span>{label}</span><b>{value}</b><div className="progress-track"><i className="bg-blue-500" style={{width:value}}/></div></div>)}</section><section className="panel"><h2>Report exports</h2><p className="module-copy">Download a snapshot for your leadership review.</p><button className="primary-action" onClick={()=>onToast('Report export is ready to connect to live finance data.')}><FileText size={16}/> Prepare report</button></section></div>:active==='Attendance'||active==='Leave management'||active==='Task management'?<div className="module-action-panel"><div className="module-empty-icon"><Clock3 size={24}/></div><h2>{active==='Attendance'?'People and attendance':active}</h2><p>Open the live {active.toLowerCase()} workspace to review employee records and pending actions.</p><Link className="primary-action" to={active==='Task management'?'/admin/tasks':'/admin/employees'}>Open {active.toLowerCase()} <ArrowRight size={15}/></Link></div>:<div className="module-grid"><section className="panel module-panel"><div className="panel-heading"><div><h2>{active} overview</h2><p>Sample workspace records for the Nextradev prototype</p></div><button className="primary-action" onClick={()=>onToast(`Add ${active.toLowerCase()} form is ready to connect to the company API.`)}><Plus size={16}/> Add record</button></div><div className="module-records">{(active==='Clients'?[['Atlas Ventures','Enterprise software','₹18,40,000','Active client'],['Northstar Finance','Fintech platform','₹26,10,000','Active client'],['Orbit Retail','Commerce solutions','₹12,75,000','Payment pending']]:active==='Leads & enquiries'?[['BrightPath Health','Website enquiry','New','Today'],['Vertex Logistics','Referral','Qualified','Yesterday'],['Aster Learning','Website enquiry','Contacted','Nov 21']]:active==='Invoices & payments'?[['INV-2026-041','Atlas Ventures','₹4,80,000','Due Dec 08'],['INV-2026-038','Northstar Finance','₹7,25,000','Paid Nov 22'],['INV-2026-035','Orbit Retail','₹2,10,000','Overdue']]:[['Q3 company review','Leadership','In progress','Updated today'],['Operations planning','Nextradev','Scheduled','Dec 02'],['Client delivery review','Delivery team','On track','Dec 05']]).map(([a,b,c,d])=><div className="module-record" key={a}><div><b>{a}</b><small>{b}</small></div><span>{c}</span><i>{d}</i></div>)}</div></section><section className="panel"><div className="panel-heading"><div><h2>Recent activity</h2><p>Latest changes</p></div></div>{activity.slice(0,3).map(a=><div className="module-activity" key={a.action}><Avatar initials={a.initials} tone={a.tone} size="sm"/><span>{a.action}<small>{a.time}</small></span></div>)}</section></div>;
- return <motion.div className="module-page" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-mark"/> COMPANY WORKSPACE</div><h1>{title}</h1><p>{moduleDescription[active]||'Company operations at a glance.'}</p></div><div className="heading-controls"><button className="range-select" onClick={onReturn}><LayoutDashboard size={16}/> Dashboard</button><button className="primary-action" onClick={()=>onToast(`${active} module is in the workspace prototype.`)}><Plus size={16}/> Create new</button></div></div><div className="prototype-note"><Sparkles size={15}/><span>Management workspace · sample records shown where live data connections are not configured</span></div>{content}<div className="module-footer-links"><button onClick={()=>onNavigate('Dashboard')}>← Back to overview</button><Link to="/admin/internships">Content management</Link><Link to="/admin/employees">People & attendance</Link><Link to="/admin/tasks">Task management</Link></div></motion.div>;
-}
+function MapPinIcon(){return <span className="text-base" aria-hidden="true">⌖</span>}

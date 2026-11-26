@@ -1,6 +1,54 @@
-import { useEffect, useState } from 'react';
-import { addDoc, collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { useCallback, useEffect, useState } from 'react';
+import { CheckCircle2, Circle, ClipboardList } from 'lucide-react';
+import { assignTask, listEmployees, listTasks, subscribeWorkforce, type WorkforceRow } from '../../utils/workforceApi';
 
-const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800';
-export default function AdminTasks(){const [employees,setEmployees]=useState<any[]>([]),[tasks,setTasks]=useState<any[]>([]),[employeeId,setEmployeeId]=useState(''),[title,setTitle]=useState(''),[description,setDescription]=useState(''),[dueDate,setDueDate]=useState(''),[message,setMessage]=useState('');useEffect(()=>{const a=onSnapshot(collection(db,'employees'),s=>setEmployees(s.docs.map(d=>({id:d.id,...d.data()}))));const b=onSnapshot(collection(db,'tasks'),s=>setTasks(s.docs.map(d=>({id:d.id,...d.data()}))));return()=>{a();b();}},[]);return <main className="mx-auto max-w-6xl px-4 py-10 text-slate-700"><h1 className="text-3xl font-bold text-slate-900">Employee tasks</h1><p className="mt-1">Assign work and review submitted completion reports.</p><div className="mt-6 grid gap-5 lg:grid-cols-[360px_1fr]"><form onSubmit={async e=>{e.preventDefault();const employee=employees.find(x=>x.id===employeeId);try{await addDoc(collection(db,'tasks'),{employeeId,employeeName:employee?.name||employee?.email||'',title,description,dueDate,assignedBy:'Admin',status:'pending',createdAt:new Date().toISOString()});setTitle('');setDescription('');setDueDate('');setMessage('Task assigned.');}catch{setMessage('Could not assign task.');}}} className="h-fit space-y-3 rounded-2xl border bg-white p-5"><h2 className="font-bold text-slate-900">Assign a task</h2><select required className={field} value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">Choose employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name||e.email||e.id}</option>)}</select><input required className={field} placeholder="Task title" value={title} onChange={e=>setTitle(e.target.value)}/><textarea required className={field} rows={4} placeholder="Description and expected outcome" value={description} onChange={e=>setDescription(e.target.value)}/><label className="block text-sm">Due date<input className={`${field} mt-1`} type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label><button className="rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white">Assign task</button>{message&&<p role="status" className="text-sm">{message}</p>}</form><section className="space-y-3">{tasks.map(t=><article key={t.id} className="rounded-2xl border bg-white p-5"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-bold text-slate-900">{t.title}</h2><span className="text-sm capitalize">{(t.status||'pending').replace('-',' ')}</span></div><p className="mt-1 text-sm">{t.employeeName||t.employeeId} {t.dueDate&&`· Due ${t.dueDate}`}</p><p className="mt-3 text-sm">{t.description}</p>{t.startedAt&&<p className="mt-2 text-xs">Started {new Date(t.startedAt).toLocaleString()}</p>}{t.report&&<div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm"><strong>Completion report</strong><p>{t.report}</p></div>}</article>)}{!tasks.length&&<div className="rounded-2xl border bg-white p-6">No tasks assigned yet.</div>}</section></div></main>}
+const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800';
+
+export default function AdminTasks() {
+  const [employees, setEmployees] = useState<WorkforceRow[]>([]);
+  const [tasks, setTasks] = useState<WorkforceRow[]>([]);
+  const [employeeId, setEmployeeId] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [staff, assigned] = await Promise.all([listEmployees(), listTasks()]);
+      setEmployees(staff.filter(person => person.active)); setTasks(assigned); setError('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Workforce data could not be loaded.'); }
+  }, []);
+
+  useEffect(() => { void refresh(); const unsubscribe = subscribeWorkforce(() => { void refresh(); }); return unsubscribe; }, [refresh]);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setSaving(true); setMessage('');
+    try {
+      await assignTask({ employeeId, title: title.trim(), description: description.trim(), dueDate });
+      setTitle(''); setDescription(''); setDueDate(''); setMessage('Task assigned.'); await refresh();
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Could not assign task.'); }
+    finally { setSaving(false); }
+  };
+
+  return <div className="workspace-content employee-operations">
+    <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-mark"/> TEAM DELIVERY</div><h1>Task management</h1><p>Assign work and review completion reports from your team.</p></div></div>
+    {error && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{error}</p>}
+    <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
+      <form onSubmit={submit} className="panel h-fit space-y-3"><div className="panel-heading"><div><h2>Assign a task</h2><p>Choose an employee and set the expected outcome.</p></div><ClipboardList size={18}/></div>
+        <label className="block text-sm">Employee<select required className={`${field} mt-1`} value={employeeId} onChange={event => setEmployeeId(event.target.value)}><option value="">Choose employee</option>{employees.map(employee => <option key={employee.uid} value={employee.uid}>{employee.name} · {employee.email}</option>)}</select></label>
+        <label className="block text-sm">Task title<input required maxLength={180} className={`${field} mt-1`} value={title} onChange={event => setTitle(event.target.value)}/></label>
+        <label className="block text-sm">Description and expected outcome<textarea required maxLength={5000} rows={4} className={`${field} mt-1`} value={description} onChange={event => setDescription(event.target.value)}/></label>
+        <label className="block text-sm">Due date<input className={`${field} mt-1`} type="date" value={dueDate} onChange={event => setDueDate(event.target.value)}/></label>
+        <button disabled={saving || !employees.length} className="primary-action disabled:opacity-50">{saving ? 'Assigning…' : 'Assign task'}</button>
+        {!employees.length && !error && <p className="text-xs text-slate-500">Add an active employee before assigning tasks.</p>}{message&&<p role="status" className="text-sm">{message}</p>}
+      </form>
+      <section className="space-y-3"><div className="panel-heading"><div><h2>Assigned tasks</h2><p>{tasks.length} task{tasks.length===1?'':'s'} · updates appear live.</p></div></div>
+        {tasks.map(task => <article key={task.id} className="panel"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold text-slate-900">{task.title}</h3><p className="mt-1 text-sm text-slate-500">{employees.find(employee=>employee.uid===task.employeeId)?.name||task.employeeId}{task.dueDate&&` · Due ${task.dueDate}`}</p></div><span className="status-pill status-blue capitalize">{String(task.status||'pending').replace('-',' ')}</span></div><p className="mt-3 text-sm">{task.description}</p>{task.startedAt&&<p className="mt-2 text-xs text-slate-500">Started {new Date(task.startedAt).toLocaleString()}</p>}{task.report&&<div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><strong><CheckCircle2 size={15} className="mr-1 inline"/>Completion report</strong><p className="mt-1">{task.report}</p></div>}{!task.report&&task.status==='pending'&&<p className="mt-3 text-xs text-slate-500"><Circle size={13} className="mr-1 inline"/>Waiting for employee to start.</p>}</article>)}
+        {!tasks.length&&!error&&<div className="panel text-sm text-slate-500">No tasks have been assigned.</div>}
+      </section>
+    </div>
+  </div>;
+}

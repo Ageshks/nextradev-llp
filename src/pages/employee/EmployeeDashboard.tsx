@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { addDoc, collection, doc, onSnapshot, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
 import { CalendarDays, Clock3, CheckCircle2, Circle, ClipboardList, LogOut, Send, CalendarPlus, AlertCircle, UserRound, MapPin, BriefcaseBusiness } from 'lucide-react';
 import { useAuthListener } from '../../context/AuthContext';
-import { db } from '../../lib/firebase';
+import { checkIn as apiCheckIn, checkOut as apiCheckOut, createLeave, getEmployeeProfile, getWorkplace, listAttendance, listCalendar, listCheckoutRequests, listLeaves, listTasks, subscribeWorkforce, updateTask as apiUpdateTask } from '../../utils/workforceApi';
 
 type Row = { id: string; [key: string]: any };
 const today = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
-const distanceMeters = (a: any, b: any) => { const rad=(n:number)=>n*Math.PI/180; const dLat=rad(b.latitude-a.latitude), dLon=rad(b.longitude-a.longitude); const x=Math.sin(dLat/2)**2+Math.cos(rad(a.latitude))*Math.cos(rad(b.latitude))*Math.sin(dLon/2)**2; return Math.round(6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))); };
 const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500';
 
@@ -21,19 +19,19 @@ export default function EmployeeDashboard() {
   const [reportId,setReportId]=useState(''), [report,setReport]=useState('');
   const employeeId=user?.uid;
   useEffect(()=>{ if(!employeeId)return;
-    const reportError=(key:string,label:string)=>(error:Error)=>setLoadErrors(current=>({...current,[key]:`${label}: ${error.message}`}));
-    const clearError=(key:string)=>setLoadErrors(current=>{const next={...current};delete next[key];return next;});
-    const markLoaded=(key:string)=>setLoaded(current=>({...current,[key]:true}));
-    const unsubs=[
-      onSnapshot(query(collection(db,'tasks'),where('employeeId','==',employeeId)),s=>{setTasks(s.docs.map(d=>({id:d.id,...d.data()})));clearError('tasks');markLoaded('tasks');},reportError('tasks','Tasks could not be loaded')),
-      onSnapshot(query(collection(db,'leaves'),where('employeeId','==',employeeId)),s=>{setLeaves(s.docs.map(d=>({id:d.id,...d.data()})));clearError('leaves');markLoaded('leaves');},reportError('leaves','Leave requests could not be loaded')),
-      onSnapshot(query(collection(db,'calendar'),where('year','==',calendarYear)),s=>{setEvents(s.docs.map(d=>({id:d.id,...d.data()})));clearError('calendar');markLoaded('calendar');},reportError('calendar','Work calendar could not be loaded')),
-      onSnapshot(doc(db,'employees',employeeId),s=>{setProfile(s.exists()?{id:s.id,...s.data()}:null);clearError('profile');markLoaded('profile');},reportError('profile','Employee profile could not be loaded')),
-      onSnapshot(query(collection(db,'attendance'),where('employeeId','==',employeeId)),s=>{setAttendanceHistory(s.docs.map(d=>({id:d.id,...d.data()} as Row)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))));clearError('history');markLoaded('history');},reportError('history','Attendance history could not be loaded')),
-      onSnapshot(doc(db,'attendance',`${employeeId}_${today()}`),s=>{setAttendance(s.exists()?{id:s.id,...s.data()}:null);clearError('attendance');markLoaded('attendance');},error=>{markLoaded('attendance');reportError('attendance','Attendance could not be loaded')(error);}),
-      onSnapshot(doc(db,'settings','workplace'),s=>{setOffice(s.exists()?s.data():null);clearError('workplace');markLoaded('workplace');},error=>{markLoaded('workplace');reportError('workplace','Workplace settings could not be loaded')(error);}),
-      onSnapshot(query(collection(db,'logoutRequests'),where('employeeId','==',employeeId)),s=>{setLogoutRequests(s.docs.map(d=>({id:d.id,...d.data()})));clearError('logoutRequests');markLoaded('logoutRequests');},error=>{markLoaded('logoutRequests');reportError('logoutRequests','Logout requests could not be loaded')(error);}),
-    ]; return ()=>unsubs.forEach(u=>u());
+    let active=true;
+    const refresh=async()=>{
+      const results=await Promise.allSettled([listTasks(),listLeaves(),listCalendar(calendarYear),getEmployeeProfile(),listAttendance(),listAttendance(today()),getWorkplace(),listCheckoutRequests()]);
+      if(!active)return;
+      const labels=['tasks','leaves','calendar','profile','history','attendance','workplace','logoutRequests'];
+      const messages=['Tasks','Leave requests','Work calendar','Employee profile','Attendance history','Today’s attendance','Workplace settings','Checkout requests'];
+      setLoadErrors(current=>{const next={...current};results.forEach((result,index)=>{if(result.status==='rejected')next[labels[index]]=`${messages[index]} could not be loaded: ${result.reason?.message||'service unavailable'}`;else delete next[labels[index]];});return next;});
+      results.forEach((result,index)=>{if(result.status==='rejected')return;const value=result.value;switch(index){case 0:setTasks(value);break;case 1:setLeaves(value);break;case 2:setEvents(value);break;case 3:setProfile({...value,id:value.uid});break;case 4:setAttendanceHistory(value);break;case 5:setAttendance(value[0]||null);break;case 6:setOffice(value);break;case 7:setLogoutRequests(value);break;}});
+      setLoaded(Object.fromEntries(labels.map(label=>[label,true])));
+    };
+    void refresh();
+    const unsubscribe=subscribeWorkforce(()=>{void refresh();});
+    return ()=>{active=false;unsubscribe();};
   },[employeeId,calendarYear]);
   const calendarDays=useMemo(()=>Array.from({length:12},(_,m)=>({name:new Date(calendarYear,m,1).toLocaleString('en',{month:'long'}),days:new Date(calendarYear,m+1,0).getDate(),offset:new Date(calendarYear,m,1).getDay(),month:m})),[calendarYear]);
   const visibleTasks=tasks.filter(task=>taskFilter==='all'||(task.status||'pending')===taskFilter);
@@ -41,10 +39,10 @@ export default function EmployeeDashboard() {
   const employeeName=profile?.name||user?.displayName||user?.email?.split('@')[0]||'Employee';
   const shiftMinutes=attendance?.checkIn?Math.max(0,Math.floor(((attendance.checkOut?new Date(attendance.checkOut).getTime():Date.now())-new Date(attendance.checkIn).getTime())/60000)):0;
   const getPosition=()=>new Promise<GeolocationPosition>((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is unavailable in this browser.'));navigator.geolocation.getCurrentPosition(resolve,()=>reject(new Error('Allow location access and try again.')),{enableHighAccuracy:true,timeout:15000});});
-  const checkIn=async()=>{if(!employeeId)return; setNotice('');setBusy(true);try{if(typeof office?.latitude!=='number'||typeof office?.longitude!=='number')throw new Error('Workplace location has not been configured. Contact your admin.');const pos=await getPosition();const point={latitude:pos.coords.latitude,longitude:pos.coords.longitude};const limit=Number(office.radiusMeters)||300;const distance=distanceMeters(point,office);if(distance>limit)throw new Error(`You are ${distance}m from the workplace. Check-in is limited to ${limit}m.`);const attendanceRef=doc(db,'attendance',`${employeeId}_${today()}`);const checkInTime=new Date().toISOString();await runTransaction(db,async transaction=>{const existing=await transaction.get(attendanceRef);if(existing.exists()&&existing.data().checkIn)throw new Error('Attendance has already been checked in for today.');transaction.set(attendanceRef,{employeeId,date:today(),checkIn:checkInTime,checkInLocation:point,status:'present'});});setNotice('Checked in. Your attendance has been recorded.');}catch(e:any){setNotice(e.message||'Could not check in.');}finally{setBusy(false);}};
-  const checkOut=async()=>{if(!employeeId||!attendance)return;setNotice('');setBusy(true);try{if(typeof office?.latitude!=='number'||typeof office?.longitude!=='number')throw new Error('Workplace location has not been configured.');const pos=await getPosition();const point={latitude:pos.coords.latitude,longitude:pos.coords.longitude};const limit=Number(office.radiusMeters)||300;const distance=distanceMeters(point,office);const pending=logoutRequests.filter(request=>request.status==='pending');if(distance>limit){if(pending.length){setNotice('Your checkout request is already waiting for admin approval.');return;}await addDoc(collection(db,'logoutRequests'),{employeeId,employeeName:user?.displayName||user?.email||'Employee',attendanceId:attendance.id,distanceMeters:distance,location:point,status:'pending',createdAt:new Date().toISOString()});setNotice(`You are ${distance}m from the workplace. A logout request was sent to admin; attendance remains open until approval.`);return;}const checkoutTime=new Date().toISOString();let halfDay=false;await runTransaction(db,async transaction=>{const current=await transaction.get(doc(db,'attendance',attendance.id));if(!current.exists())throw new Error('Today’s attendance record could not be found.');const data=current.data();if(data.checkOut)throw new Error('You have already checked out for today.');const hours=(Date.now()-new Date(data.checkIn).getTime())/3600000;halfDay=hours<4;transaction.update(doc(db,'attendance',attendance.id),{checkOut:checkoutTime,checkOutLocation:point,status:halfDay?'half-day':'present'});});await Promise.all(pending.map(request=>updateDoc(doc(db,'logoutRequests',request.id),{status:'resolved',resolvedAt:checkoutTime,resolution:'employee_checked_out'})));setNotice(halfDay?'Checked out. Attendance marked half day.':'Checked out. Attendance recorded.');}catch(e:any){setNotice(e.message||'Could not check out.');}finally{setBusy(false);}};
-  const updateTask=async(task:Row,status:string,extra:any={})=>{try{await setDoc(doc(db,'tasks',task.id),{...task,status,...extra},{merge:true});setNotice(status==='completed'?'Task report submitted.':'Task updated.');return true;}catch{setNotice('Could not update task. Check your account’s Firestore access.');return false;}};
-  const submitLeave=async(e:React.FormEvent)=>{e.preventDefault();if(!employeeId||!leaveReason.trim())return;try{await addDoc(collection(db,'leaves'),{employeeId,employeeName:user?.displayName||user?.email||'Employee',type:leaveType,date:leaveDate,reason:leaveReason.trim(),status:'pending',createdAt:new Date().toISOString()});setLeaveReason('');setNotice('Leave request sent to admin.');}catch{setNotice('Could not submit leave request.');}};
+  const checkIn=async()=>{if(!employeeId)return;setNotice('');setBusy(true);try{const pos=await getPosition();await apiCheckIn(today(),{latitude:pos.coords.latitude,longitude:pos.coords.longitude});setNotice('Checked in. Your attendance has been recorded.');}catch(e:any){setNotice(e.message||'Could not check in.');}finally{setBusy(false);}};
+  const checkOut=async()=>{if(!employeeId||!attendance)return;setNotice('');setBusy(true);try{const pos=await getPosition();const result=await apiCheckOut(today(),{latitude:pos.coords.latitude,longitude:pos.coords.longitude});setNotice(result.requestPending?result.message:result.status==='half-day'?'Checked out. Attendance marked half day.':'Checked out. Attendance recorded.');}catch(e:any){setNotice(e.message||'Could not check out.');}finally{setBusy(false);}};
+  const updateTask=async(task:Row,status:string,extra:any={})=>{try{await apiUpdateTask(task.id,status,extra.report);setNotice(status==='completed'?'Task report submitted.':'Task updated.');return true;}catch(error){setNotice(error instanceof Error?error.message:'Could not update task.');return false;}};
+  const submitLeave=async(e:React.FormEvent)=>{e.preventDefault();if(!employeeId||!leaveReason.trim())return;try{await createLeave({type:leaveType,date:leaveDate,reason:leaveReason.trim()});setLeaveReason('');setNotice('Leave request sent to admin.');}catch(error){setNotice(error instanceof Error?error.message:'Could not submit leave request.');}};
   const canCheckIn=loaded.attendance&&loaded.workplace&&!loadErrors.attendance&&!loadErrors.workplace;
   const canCheckOut=canCheckIn&&loaded.logoutRequests&&!loadErrors.logoutRequests;
   if(loading)return <div className="mx-auto max-w-6xl p-8 text-slate-600">Loading your workspace…</div>;
