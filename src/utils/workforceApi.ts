@@ -40,6 +40,8 @@ export const approveCheckout = (id: string) => request(`/checkout-requests/${enc
 export const listTasks = () => request<WorkforceRow[]>('/tasks');
 export const assignTask = (task: Record<string, unknown>) => request('/tasks', json('POST', task));
 export const updateTask = (id: string, status: string, report?: string) => request(`/tasks/${encodeURIComponent(id)}`, json('PATCH', { status, report }));
+export const listTaskComments = (id: string) => request<WorkforceRow[]>(`/tasks/${encodeURIComponent(id)}/comments`);
+export const addTaskComment = (id: string, body: string) => request<WorkforceRow>(`/tasks/${encodeURIComponent(id)}/comments`, json('POST', { body }));
 export const listLeaves = () => request<WorkforceRow[]>('/leaves');
 export const createLeave = (leave: Record<string, unknown>) => request('/leaves', json('POST', leave));
 export const reviewLeave = (id: string, status: 'approved' | 'rejected') => request(`/leaves/${encodeURIComponent(id)}/review`, json('PATCH', { status }));

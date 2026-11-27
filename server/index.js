@@ -13,6 +13,7 @@ import projectRoutes from './routes/projects.js';
 import leadershipRoutes from './routes/leadership.js';
 import careerRoutes from './routes/careers.js';
 import workforceRoutes from './routes/workforce.js';
+import enterpriseRoutes from './routes/enterprise.js';
 import { adminMiddleware } from './auth.js';
 
 const app = express();
@@ -71,6 +72,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/leadership', leadershipRoutes);
 app.use('/api/careers', careerRoutes);
 app.use('/api/workforce', workforceRoutes);
+app.use('/api/enterprise', enterpriseRoutes);
 
 // Admin-only helper: list users (not needed). Keep /api/admin/verify
 app.get('/api/admin/verify', adminMiddleware, (req, res) => res.json({ ok: true, user: req.user }));

@@ -1,0 +1,53 @@
+import { auth } from '../lib/firebase';
+
+const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '').replace(/\/api$/, '');
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in with your company account to continue.');
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${await user.getIdToken()}`);
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const response = await fetch(`${API_BASE}/api/enterprise${path}`, { ...init, headers });
+  if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error || 'The enterprise service could not complete this request.'); }
+  return response.json() as Promise<T>;
+}
+const json = (method: string, data?: unknown): RequestInit => ({ method, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
+export type EnterpriseRow = { id: string; [key: string]: any };
+export type DashboardData = { month: string; kpis: Record<string, number | null>; monthly: { month: string; revenue: number | null; expenses: number | null }[]; projects: EnterpriseRow[]; activity: EnterpriseRow[] };
+export const getEnterpriseDashboard = () => request<DashboardData>('/dashboard');
+export const listEnterpriseClients = (search = '') => request<EnterpriseRow[]>(`/clients${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+export const createEnterpriseClient = (data: Record<string, unknown>) => request<EnterpriseRow>('/clients', json('POST', data));
+export const updateEnterpriseClient = (id: string, data: Record<string, unknown>) => request<EnterpriseRow>(`/clients/${encodeURIComponent(id)}`, json('PATCH', data));
+export const listEnterpriseLeads = () => request<EnterpriseRow[]>('/leads');
+export const createEnterpriseLead = (data: Record<string, unknown>) => request<EnterpriseRow>('/leads', json('POST', data));
+export const updateEnterpriseLead = (id: string, data: Record<string, unknown>) => request<EnterpriseRow>(`/leads/${encodeURIComponent(id)}`, json('PATCH', data));
+export const convertEnterpriseLead = (id: string) => request<EnterpriseRow>(`/leads/${encodeURIComponent(id)}/convert`, json('POST'));
+export const listEnterpriseProjects = () => request<EnterpriseRow[]>('/projects');
+export const createEnterpriseProject = (data: Record<string, unknown>) => request<EnterpriseRow>('/projects', json('POST', data));
+export const updateEnterpriseProject = (id: string, data: Record<string, unknown>) => request<EnterpriseRow>(`/projects/${encodeURIComponent(id)}`, json('PATCH', data));
+export const assignEnterpriseProjectMembers = (id: string, members: string[]) => request(`/projects/${encodeURIComponent(id)}/members`, json('PUT', { members }));
+export const listEnterpriseDepartments = () => request<EnterpriseRow[]>('/departments');
+export const listEnterpriseEmployees = () => request<EnterpriseRow[]>('/employees');
+export const createEnterpriseDepartment = (data: Record<string, unknown>) => request<EnterpriseRow>('/departments', json('POST', data));
+export const getEnterpriseFinance = () => request<{ invoices: EnterpriseRow[]; expenses: EnterpriseRow[]; clients: EnterpriseRow[]; projects: EnterpriseRow[] }>('/finance');
+export const createEnterpriseInvoice = (data: Record<string, unknown>) => request<EnterpriseRow>('/invoices', json('POST', data));
+export const updateEnterpriseInvoice = (id: string, status: string) => request<EnterpriseRow>(`/invoices/${encodeURIComponent(id)}`, json('PATCH', { status }));
+export const createEnterpriseExpense = (data: Record<string, unknown>) => request<EnterpriseRow>('/expenses', json('POST', data));
+export const listEnterpriseNotifications = () => request<EnterpriseRow[]>('/notifications');
+export const markEnterpriseNotificationRead = (id: string) => request(`/notifications/${encodeURIComponent(id)}/read`, json('PATCH'));
+export const listEnterpriseAuditLogs = () => request<EnterpriseRow[]>('/audit-logs');
+export const listPayroll = (year: number, month: number) => request<EnterpriseRow[]>(`/payroll?year=${year}&month=${month}`);
+export const generatePayrollDrafts = (year: number, month: number) => request<{ generated: number; skipped: number; message: string }>('/payroll/generate', json('POST', { year, month }));
+export const updatePayrollRecord = (id: string, data: Record<string, unknown>) => request<EnterpriseRow>(`/payroll/${encodeURIComponent(id)}`, json('PATCH', data));
+export const listProposals = () => request<EnterpriseRow[]>('/proposals');
+export const createProposal = (data: Record<string, unknown>) => request<EnterpriseRow>('/proposals', json('POST', data));
+export const updateProposal = (id: string, status: string) => request<EnterpriseRow>(`/proposals/${encodeURIComponent(id)}`, json('PATCH', { status }));
+export const convertProposal = (id: string) => request<EnterpriseRow>(`/proposals/${encodeURIComponent(id)}/convert`, json('POST'));
+export const listContracts = () => request<EnterpriseRow[]>('/contracts');
+export const createContract = (data: Record<string, unknown>) => request<EnterpriseRow>('/contracts', json('POST', data));
+export const updateContract = (id: string, status: string) => request<EnterpriseRow>(`/contracts/${encodeURIComponent(id)}`, json('PATCH', { status }));
+export const listSupportTickets = () => request<EnterpriseRow[]>('/support-tickets');
+export const createSupportTicket = (data: Record<string, unknown>) => request<EnterpriseRow>('/support-tickets', json('POST', data));
+export const updateSupportTicket = (id: string, data: Record<string, unknown>) => request<EnterpriseRow>(`/support-tickets/${encodeURIComponent(id)}`, json('PATCH', data));
+export const listTicketComments = (id: string) => request<EnterpriseRow[]>(`/support-tickets/${encodeURIComponent(id)}/comments`);
+export const addTicketComment = (id: string, body: string) => request<EnterpriseRow>(`/support-tickets/${encodeURIComponent(id)}/comments`, json('POST', { body }));

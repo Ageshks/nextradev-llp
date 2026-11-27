@@ -70,7 +70,7 @@ export async function authMiddleware(req, res, next) {
 
 export async function workforceUserMiddleware(req, res, next) {
   await authMiddleware(req, res, () => {
-    const allowed = new Set(['employee','developer','project_manager','sales_executive','finance_manager','hr','hr_manager','admin','super_admin','super admin']);
+    const allowed = new Set(['employee','developer','project_manager','team_leader','sales_executive','finance_manager','hr','hr_manager','admin','super_admin','super admin']);
     if (!req.user.active || !allowed.has(req.user.role)) return res.status(403).json({ error: 'An active company employee profile is required.' });
     next();
   });

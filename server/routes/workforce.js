@@ -18,12 +18,20 @@ const requireLocation = value => {
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
   return { latitude, longitude };
 };
-const mapEmployee = row => ({ id: row.uid, uid: row.uid, email: row.email, name: row.name, role: row.role, department: row.department, title: row.title, employeeCode: row.employee_code, active: Boolean(row.active), createdAt: row.created_at });
+const mapEmployee = row => ({ id: row.uid, uid: row.uid, email: row.email, name: row.name, role: row.role, department: row.department, title: row.title, employeeCode: row.employee_code, joiningDate: row.joining_date || '', employmentType: row.employment_type || 'full_time', salaryAmount: Number(row.salary_amount || 0), managerUid: row.manager_uid || '', active: Boolean(row.active), createdAt: row.created_at });
 const mapAttendance = row => ({ id: row.id, employeeId: row.employee_id, date: row.date, checkIn: row.check_in, checkOut: row.check_out, checkInLocation: row.check_in_lat == null ? null : { latitude: row.check_in_lat, longitude: row.check_in_lng }, checkOutLocation: row.check_out_lat == null ? null : { latitude: row.check_out_lat, longitude: row.check_out_lng }, status: row.status, updatedAt: row.updated_at });
 const changed = entity => workforceEvents.emit('change', { entity, at: stamp() });
 const audit = (userId, action, entityId, previousValue = '', updatedValue = '') => db.prepare('INSERT INTO workforce_audit_logs(id,user_id,action,module,entity_id,previous_value,updated_value,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), userId, action, 'attendance_regularisation', entityId, JSON.stringify(previousValue), JSON.stringify(updatedValue), stamp());
 const getEmployee = uid => db.prepare('SELECT * FROM employee_profiles WHERE uid=?').get(uid);
 const isAdmin = user => isAdminRole(user?.role);
+const canManageTask = (user, task) => {
+  if (isAdmin(user)) return true;
+  if (task.employee_id === user.uid) return false;
+  if (!['project_manager','team_leader'].includes(user.role) || !task.project_id) return false;
+  const project = db.prepare('SELECT manager_uid FROM enterprise_projects WHERE id=?').get(task.project_id);
+  return project?.manager_uid === user.uid || Boolean(db.prepare('SELECT 1 FROM enterprise_project_members WHERE project_id=? AND employee_uid=?').get(task.project_id, user.uid));
+};
+const canViewTask = (user, task) => task.employee_id === user.uid || canManageTask(user, task);
 
 router.get('/migration/status', adminMiddleware, (_req, res) => {
   res.json({ imported: Boolean(db.prepare("SELECT name FROM workforce_migrations WHERE name='firestore-workforce-v1'").get()) });
@@ -89,6 +97,10 @@ router.get('/me', workforceUserMiddleware, (req, res) => {
     department: profile.department || saved?.department || '',
     title: profile.title || saved?.title || '',
     employeeCode: profile.employeeCode || saved?.employee_code || '',
+    joiningDate: profile.joiningDate || saved?.joining_date || '',
+    employmentType: profile.employmentType || saved?.employment_type || 'full_time',
+    salaryAmount: profile.salaryAmount ?? saved?.salary_amount ?? null,
+    managerUid: profile.managerUid || saved?.manager_uid || '',
     active: req.user.active,
   });
 });
@@ -110,9 +122,11 @@ router.post('/employees', adminMiddleware, (req, res) => {
   if (!uid || !email || !name || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'A Firebase UID, employee name, and valid email are required.' });
   const role = ['employee', 'developer', 'project_manager', 'sales_executive', 'finance_manager', 'hr'].includes(clean(req.body?.role, 40).toLowerCase()) ? clean(req.body.role, 40).toLowerCase() : 'employee';
   const now = stamp();
-  db.prepare(`INSERT INTO employee_profiles(uid,email,name,role,department,title,employee_code,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?)
-    ON CONFLICT(uid) DO UPDATE SET email=excluded.email,name=excluded.name,role=excluded.role,department=excluded.department,title=excluded.title,employee_code=excluded.employee_code,active=1,updated_at=excluded.updated_at`)
-    .run(uid, email, name, role, clean(req.body?.department, 100), clean(req.body?.title, 100), clean(req.body?.employeeCode, 50), now, now);
+  const salary = Number(req.body?.salaryAmount ?? getEmployee(uid)?.salary_amount ?? 0);
+  if (!Number.isFinite(salary) || salary < 0 || salary > 1_000_000_000) return res.status(400).json({ error: 'Salary amount must be a valid non-negative number.' });
+  db.prepare(`INSERT INTO employee_profiles(uid,email,name,role,department,title,employee_code,joining_date,employment_type,salary_amount,manager_uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+    ON CONFLICT(uid) DO UPDATE SET email=excluded.email,name=excluded.name,role=excluded.role,department=excluded.department,title=excluded.title,employee_code=excluded.employee_code,joining_date=excluded.joining_date,employment_type=excluded.employment_type,salary_amount=excluded.salary_amount,manager_uid=excluded.manager_uid,active=1,updated_at=excluded.updated_at`)
+    .run(uid, email, name, role, clean(req.body?.department, 100), clean(req.body?.title, 100), clean(req.body?.employeeCode, 50), clean(req.body?.joiningDate, 10), clean(req.body?.employmentType || 'full_time', 30), salary, clean(req.body?.managerUid, 128), now, now);
   changed('employees'); res.status(201).json(mapEmployee(getEmployee(uid)));
 });
 router.delete('/employees/:uid', adminMiddleware, (req, res) => {
@@ -230,24 +244,48 @@ router.post('/checkout-requests/:id/review', adminMiddleware, reviewCheckoutRequ
 router.post('/checkout-requests/:id/approve', adminMiddleware, (req, res) => { req.body = { ...req.body, status: 'approved' }; return reviewCheckoutRequest(req, res); });
 
 router.get('/tasks', workforceUserMiddleware, (req, res) => {
-  const rows = isAdmin(req.user) ? db.prepare('SELECT * FROM workforce_tasks ORDER BY created_at DESC').all() : db.prepare('SELECT * FROM workforce_tasks WHERE employee_id=? ORDER BY created_at DESC').all(req.user.uid);
-  res.json(rows.map(row => ({ id: row.id, employeeId: row.employee_id, title: row.title, description: row.description, dueDate: row.due_date, assignedBy: row.assigned_by, status: row.status, startedAt: row.started_at, completedAt: row.completed_at, report: row.report, createdAt: row.created_at })));
+  const rows = db.prepare('SELECT * FROM workforce_tasks ORDER BY created_at DESC').all().filter(row => canViewTask(req.user, row));
+  res.json(rows.map(row => ({ id: row.id, employeeId: row.employee_id, title: row.title, description: row.description, dueDate: row.due_date, assignedBy: row.assigned_by, status: row.status, priority: row.priority || 'medium', projectId: row.project_id || '', commentCount: db.prepare('SELECT COUNT(*) count FROM workforce_task_comments WHERE task_id=?').get(row.id).count, startedAt: row.started_at, completedAt: row.completed_at, report: row.report, createdAt: row.created_at, updatedAt: row.updated_at })));
 });
-router.post('/tasks', adminMiddleware, (req, res) => {
+router.post('/tasks', workforceUserMiddleware, (req, res) => {
+  if (!isAdmin(req.user) && !['project_manager','team_leader'].includes(req.user.role)) return res.status(403).json({ error: 'Project manager access required to assign tasks.' });
   const employeeId = clean(req.body?.employeeId, 128), title = clean(req.body?.title, 180), description = clean(req.body?.description, 5000), dueDate = clean(req.body?.dueDate, 10);
   if (!getEmployee(employeeId)?.active || !title || !description) return res.status(400).json({ error: 'Select an active employee and provide a task title and description.' });
+  const projectId = clean(req.body?.projectId, 64), priority = ['low','medium','high','critical'].includes(clean(req.body?.priority, 20)) ? clean(req.body.priority, 20) : 'medium';
+  if (projectId) {
+    const project = db.prepare('SELECT * FROM enterprise_projects WHERE id=?').get(projectId);
+    if (!project) return res.status(400).json({ error: 'The selected project does not exist.' });
+    if (!isAdmin(req.user) && project.manager_uid !== req.user.uid && !db.prepare('SELECT 1 FROM enterprise_project_members WHERE project_id=? AND employee_uid=?').get(projectId, req.user.uid)) return res.status(403).json({ error: 'Assign tasks only within projects you manage or belong to.' });
+  }
   const id = randomUUID(), now = stamp();
-  db.prepare('INSERT INTO workforce_tasks(id,employee_id,title,description,due_date,assigned_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').run(id, employeeId, title, description, dueDate, req.user.name || req.user.email, now, now);
+  db.prepare('INSERT INTO workforce_tasks(id,employee_id,title,description,due_date,assigned_by,created_at,updated_at,priority,project_id) VALUES(?,?,?,?,?,?,?,?,?,?)').run(id, employeeId, title, description, dueDate, req.user.name || req.user.email, now, now, priority, projectId);
+  db.prepare('INSERT INTO enterprise_notifications(id,type,title,body,entity_type,entity_id,actor_uid,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), 'task', 'New task assigned', title, 'task', id, req.user.uid, now);
+  db.prepare('INSERT INTO workforce_audit_logs(id,user_id,action,module,entity_id,previous_value,updated_value,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), req.user.uid, 'task_assigned', 'enterprise_tasks', id, '', JSON.stringify({ employeeId, projectId, priority }), now);
   changed('tasks'); res.status(201).json({ id });
+});
+router.get('/tasks/:id/comments', workforceUserMiddleware, (req, res) => {
+  const task = db.prepare('SELECT * FROM workforce_tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found.' });
+  if (!canViewTask(req.user, task)) return res.status(403).json({ error: 'This task is not assigned to you.' });
+  res.json(db.prepare('SELECT * FROM workforce_task_comments WHERE task_id=? ORDER BY created_at ASC').all(task.id).map(row => ({ id: row.id, taskId: row.task_id, authorUid: row.author_uid, authorName: getEmployee(row.author_uid)?.name || row.author_uid, body: row.body, createdAt: row.created_at })));
+});
+router.post('/tasks/:id/comments', workforceUserMiddleware, (req, res) => {
+  const task = db.prepare('SELECT * FROM workforce_tasks WHERE id=?').get(req.params.id), body = clean(req.body?.body, 3000);
+  if (!task) return res.status(404).json({ error: 'Task not found.' });
+  if (!canViewTask(req.user, task)) return res.status(403).json({ error: 'This task is not assigned to you.' });
+  if (!body) return res.status(400).json({ error: 'Comment text is required.' });
+  const id = randomUUID(), createdAt = stamp(); db.prepare('INSERT INTO workforce_task_comments(id,task_id,author_uid,body,created_at) VALUES(?,?,?,?,?)').run(id, task.id, req.user.uid, body, createdAt);
+  changed('tasks'); res.status(201).json({ id, taskId: task.id, authorUid: req.user.uid, authorName: req.user.name || req.user.email, body, createdAt });
 });
 router.patch('/tasks/:id', workforceUserMiddleware, (req, res) => {
   const task = db.prepare('SELECT * FROM workforce_tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
-  if (!isAdmin(req.user) && task.employee_id !== req.user.uid) return res.status(403).json({ error: 'This task is assigned to another employee.' });
+  if (!canViewTask(req.user, task)) return res.status(403).json({ error: 'This task is assigned to another employee.' });
   const status = clean(req.body?.status, 20), now = stamp();
   if (status === 'in-progress' && task.status === 'pending') db.prepare("UPDATE workforce_tasks SET status='in-progress',started_at=?,updated_at=? WHERE id=?").run(now, now, task.id);
   else if (status === 'completed' && clean(req.body?.report, 5000)) db.prepare("UPDATE workforce_tasks SET status='completed',report=?,completed_at=?,updated_at=? WHERE id=?").run(clean(req.body.report, 5000), now, now, task.id);
   else return res.status(400).json({ error: 'Start the task or provide a completion report.' });
+  db.prepare('INSERT INTO workforce_audit_logs(id,user_id,action,module,entity_id,previous_value,updated_value,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), req.user.uid, 'task_status_updated', 'enterprise_tasks', task.id, JSON.stringify({ status: task.status }), JSON.stringify({ status }), now);
   changed('tasks'); res.json({ ok: true });
 });
 
@@ -268,6 +306,7 @@ router.patch('/leaves/:id/review', adminMiddleware, (req, res) => {
   if (!status) return res.status(400).json({ error: 'Review status must be approved or rejected.' });
   const now = stamp(), result = db.prepare('UPDATE leave_requests SET status=?,reviewed_by=?,reviewed_at=?,updated_at=? WHERE id=? AND status=\'pending\'').run(status, req.user.uid, now, now, req.params.id);
   if (!result.changes) return res.status(404).json({ error: 'Pending leave request not found.' });
+  db.prepare('INSERT INTO workforce_audit_logs(id,user_id,action,module,entity_id,previous_value,updated_value,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), req.user.uid, `leave_${status}`, 'hr', req.params.id, JSON.stringify({ status: 'pending' }), JSON.stringify({ status }), now);
   changed('leaves'); res.json({ ok: true });
 });
 

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-route
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import MainLayout from './layouts/MainLayout';
+import AdminShell from './layouts/AdminShell';
 import { useAuthListener } from './context/AuthContext';
 import { getEmployeeProfile, migrateLegacyWorkforceOnce } from './utils/workforceApi';
 
@@ -18,7 +19,8 @@ const EmployeeLogin = lazy(() => import('./pages/EmployeeLogin'));
 const AdminInternships = lazy(() => import('./pages/AdminInternships'));
 const AdminTasks = lazy(() => import('./pages/admin/AdminTasks'));
 const AdminEmployees = lazy(() => import('./pages/admin/AdminEmployees'));
-const AdminWorkspace = lazy(() => import('./pages/admin/AdminWorkspace'));
+const EnterpriseDashboard = lazy(() => import('./pages/admin/EnterpriseDashboard'));
+const EnterpriseModules = lazy(() => import('./pages/admin/EnterpriseModules'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function ScrollToTop() {
@@ -54,9 +56,9 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
     getEmployeeProfile().then(async profile => {
       if (!active) return;
       const role = String(profile.role || '').toLowerCase();
-      const isAdmin = profile.active !== false && ['admin','super_admin','super admin','hr','hr_manager'].includes(role);
-      if (isAdmin) await migrateLegacyWorkforceOnce().catch(() => undefined);
-      if (active) setAuthorized(isAdmin);
+      const isWorkspaceUser = profile.active !== false && ['admin','super_admin','super admin','hr','hr_manager','project_manager','team_leader','sales_executive','finance_manager'].includes(role);
+      if (['admin','super_admin','super admin','hr','hr_manager'].includes(role)) await migrateLegacyWorkforceOnce().catch(() => undefined);
+      if (active) setAuthorized(isWorkspaceUser);
     }).catch(() => { if (active) setAuthorized(false); });
     return () => { active = false; };
   }, [loading, user]);
@@ -83,10 +85,22 @@ export default function App() {
             <Route path="/login" element={<Suspense fallback={<Fallback/>}><EmployeeLogin /></Suspense>} />
             <Route path="*" element={<Suspense fallback={<Fallback/>}><NotFound /></Suspense>} />
             <Route path="/admin/login" element={<Suspense fallback={<Fallback/>}><EmployeeLogin /></Suspense>} />
-            <Route path="/admin" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminWorkspace /></Suspense></AdminGuard>} />
-            <Route path="/admin/internships" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminInternships /></Suspense></AdminGuard>} />
-            <Route path="/admin/tasks" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminTasks /></Suspense></AdminGuard>} />
-            <Route path="/admin/employees" element={<AdminGuard><Suspense fallback={<Fallback/>}><AdminEmployees /></Suspense></AdminGuard>} />
+            <Route path="/admin" element={<AdminGuard><AdminShell /></AdminGuard>}>
+              <Route index element={<Suspense fallback={<Fallback/>}><EnterpriseDashboard /></Suspense>} />
+              <Route path="employees" element={<Suspense fallback={<Fallback/>}><AdminEmployees /></Suspense>} />
+              <Route path="tasks" element={<Suspense fallback={<Fallback/>}><AdminTasks /></Suspense>} />
+              <Route path="internships" element={<Suspense fallback={<Fallback/>}><AdminInternships /></Suspense>} />
+              <Route path="projects" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="projects" /></Suspense>} />
+              <Route path="clients" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="clients" /></Suspense>} />
+              <Route path="leads" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="leads" /></Suspense>} />
+              <Route path="finance" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="finance" /></Suspense>} />
+              <Route path="departments" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="departments" /></Suspense>} />
+              <Route path="activity" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="audit" /></Suspense>} />
+              <Route path="payroll" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="payroll" /></Suspense>} />
+              <Route path="proposals" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="proposals" /></Suspense>} />
+              <Route path="contracts" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="contracts" /></Suspense>} />
+              <Route path="support" element={<Suspense fallback={<Fallback/>}><EnterpriseModules module="support" /></Suspense>} />
+            </Route>
           </Route>
         </Routes>
       </AnimatePresence>

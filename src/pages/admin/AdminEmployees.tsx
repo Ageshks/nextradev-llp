@@ -24,6 +24,10 @@ export default function AdminEmployees() {
   const [employeeId, setEmployeeId] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [employeeEmail, setEmployeeEmail] = useState('');
+  const [employeeDepartment, setEmployeeDepartment] = useState('');
+  const [employeeTitle, setEmployeeTitle] = useState('');
+  const [employeeSalary, setEmployeeSalary] = useState('');
+  const [employeeJoiningDate, setEmployeeJoiningDate] = useState('');
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState(localDate());
   const [eventType, setEventType] = useState('working-day');
@@ -81,8 +85,8 @@ export default function AdminEmployees() {
     setMessage('');
     const uid = employeeId.trim();
     try {
-      await apiSaveEmployee({ uid, name: employeeName.trim(), email: employeeEmail.trim(), role: 'employee' });
-      setEmployeeId(''); setEmployeeName(''); setEmployeeEmail('');
+      await apiSaveEmployee({ uid, name: employeeName.trim(), email: employeeEmail.trim(), role: 'employee', department: employeeDepartment, title: employeeTitle, salaryAmount: Number(employeeSalary || 0), joiningDate: employeeJoiningDate });
+      setEmployeeId(''); setEmployeeName(''); setEmployeeEmail(''); setEmployeeDepartment(''); setEmployeeTitle(''); setEmployeeSalary(''); setEmployeeJoiningDate('');
       setMessage('Employee profile saved.');
     } catch {
       setMessage('Could not save employee. Check the Firebase UID and required employee details.');
@@ -160,6 +164,10 @@ export default function AdminEmployees() {
         <input required className={inputClass} aria-label="Firebase user ID" placeholder="Firebase user ID" value={employeeId} onChange={event => setEmployeeId(event.target.value)}/>
         <input required maxLength={120} className={inputClass} aria-label="Employee name" placeholder="Employee name" value={employeeName} onChange={event => setEmployeeName(event.target.value)}/>
         <input required type="text" inputMode="email" className={inputClass} aria-label="Work email" placeholder="Work email" value={employeeEmail} onChange={event => setEmployeeEmail(event.target.value)}/>
+        <input className={inputClass} aria-label="Department" placeholder="Department" value={employeeDepartment} onChange={event=>setEmployeeDepartment(event.target.value)}/>
+        <input className={inputClass} aria-label="Designation" placeholder="Designation" value={employeeTitle} onChange={event=>setEmployeeTitle(event.target.value)}/>
+        <input className={inputClass} aria-label="Monthly salary" placeholder="Monthly salary (INR)" type="number" min="0" step="0.01" value={employeeSalary} onChange={event=>setEmployeeSalary(event.target.value)}/>
+        <input className={inputClass} aria-label="Joining date" type="date" value={employeeJoiningDate} onChange={event=>setEmployeeJoiningDate(event.target.value)}/>
         <button className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white">Save employee</button>
         <div className="flex flex-wrap gap-2 md:col-span-4">{employees.map(employee => <span key={employee.id} className="inline-block rounded-full bg-slate-100 px-3 py-1 text-sm">{employee.name || 'Unnamed'} · {employee.email || employee.id}</span>)}</div>
       </form>
